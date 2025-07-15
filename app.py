@@ -66,7 +66,7 @@ retriever = setup_vector_db()
 
 # ======= Hugging Face LLM Setup =======
 HF_TOKEN = st.secrets["HF_TOKEN"]
-llm = HuggingFaceLLM(model_name="mistralai/Mistral-7B-Instruct-v0.2", hf_token=HF_TOKEN)
+llm = HuggingFaceLLM(model_name="tiiuae/falcon-7b-instruct", hf_token=HF_TOKEN)
 qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
 # ======= Chatbot Interaction =======
