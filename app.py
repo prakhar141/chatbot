@@ -1,14 +1,14 @@
 import os
 import fitz  # PyMuPDF
 import streamlit as st
-from typing import Optional, List
+from typing import List
 
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 from langchain.chains import RetrievalQA
-from langchain_community.llms import Ollama  # 👈 New LLM here
+from langchain.chat_models import ChatOpenAI  # ✅ OpenAI LLM here
 
 # ======= Load all PDFs from current directory =======
 def load_all_pdfs():
@@ -50,8 +50,13 @@ def setup_vector_db():
 
 retriever = setup_vector_db()
 
-# ======= Use Ollama instead of Gemini =======
-llm = Ollama(model="llama3", temperature=0.3)  # 👈 Can use 'mistral', 'llama3', etc.
+# ======= Use OpenAI instead of Ollama =======
+llm = ChatOpenAI(
+    temperature=0.3,
+    model_name="gpt-3.5-turbo",  # 🔁 You can switch to "gpt-4" if your account supports it
+    openai_api_key=st.secrets["OPENAI_API_KEY"]  # ✅ Store API key safely in secrets
+)
+
 qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
 # ======= Chatbot Interaction =======
