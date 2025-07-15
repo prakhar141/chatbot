@@ -2,13 +2,27 @@ import os
 import fitz  # PyMuPDF
 import streamlit as st
 from typing import List
-
+from transformers import pipeline
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 from langchain.chains import RetrievalQA
-from langchain.chat_models import ChatOpenAI  # ✅ OpenAI LLM here
+from langchain.llms.base import LLM
+
+# ======= Custom HuggingFace LLM Wrapper =======
+class HuggingFaceLLM(LLM):
+    def __init__(self, model_name: str, hf_token: str):
+        super().__init__()
+        self.generator = pipeline("text-generation", model=model_name, tokenizer=model_name, token=hf_token)
+
+    def _call(self, prompt: str, stop=None) -> str:
+        output = self.generator(prompt, max_length=512, do_sample=True)[0]["generated_text"]
+        return output[len(prompt):]  # Remove prompt from response
+
+    @property
+    def _llm_type(self) -> str:
+        return "huggingface-llm"
 
 # ======= Load all PDFs from current directory =======
 def load_all_pdfs():
@@ -50,13 +64,9 @@ def setup_vector_db():
 
 retriever = setup_vector_db()
 
-# ======= Use OpenAI instead of Ollama =======
-llm = ChatOpenAI(
-    temperature=0.3,
-    model_name="gpt-3.5-turbo",  # 🔁 You can switch to "gpt-4" if your account supports it
-    openai_api_key=st.secrets["OPENAI_API_KEY"]  # ✅ Store API key safely in secrets
-)
-
+# ======= Hugging Face LLM Setup =======
+HF_TOKEN = st.secrets["HF_TOKEN"]
+llm = HuggingFaceLLM(model_name="mistralai/Mistral-7B-Instruct-v0.2", hf_token=HF_TOKEN)
 qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
 # ======= Chatbot Interaction =======
