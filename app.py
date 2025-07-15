@@ -45,7 +45,7 @@ def setup_vector_db():
     return retriever
 
 retriever = setup_vector_db()
-llm = Ollama(model="llama3", temperature=0.3, streaming=True)
+llm = Ollama(model="llama3", temperature=0.3)
 
 # ========== Custom Prompt ==========
 custom_prompt = PromptTemplate(
