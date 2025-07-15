@@ -1,30 +1,15 @@
 import os
 import fitz  # PyMuPDF
 import streamlit as st
-from typing import List
-from transformers import pipeline
+from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 from langchain.chains import RetrievalQA
-from langchain.llms.base import LLM
+from langchain.llms import HuggingFacePipeline  # ✅ Proper LLM wrapper
 
-# ======= Custom HuggingFace LLM Wrapper =======
-class HuggingFaceLLM(LLM):
-    def __init__(self, model_name: str, hf_token: str):
-        super().__init__()
-        self.generator = pipeline("text-generation", model=model_name, tokenizer=model_name, token=hf_token)
-
-    def _call(self, prompt: str, stop=None) -> str:
-        output = self.generator(prompt, max_length=512, do_sample=True)[0]["generated_text"]
-        return output[len(prompt):]  # Remove prompt from response
-
-    @property
-    def _llm_type(self) -> str:
-        return "huggingface-llm"
-
-# ======= Load all PDFs from current directory =======
+# ======= Load PDFs from current directory =======
 def load_all_pdfs():
     docs = []
     splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=50)
@@ -36,7 +21,7 @@ def load_all_pdfs():
             docs.extend([Document(page_content=chunk, metadata={"source": file}) for chunk in chunks])
     return docs
 
-# ======= UI Config =======
+# ======= UI Setup =======
 st.set_page_config(page_title="🎓 Quillify", page_icon="🤖", layout="wide")
 st.markdown(
     """
@@ -53,8 +38,8 @@ st.markdown(
 st.markdown("<div class='big-title'>🎓 Quillify</div>", unsafe_allow_html=True)
 st.markdown("<div class='subtitle'>Ask anything about BITS – syllabus, events, academics, policies, and more</div>", unsafe_allow_html=True)
 
-# ======= Load Embeddings and Vector DB Once =======
-@st.cache_resource(show_spinner="📚 Thinking...")
+# ======= Load and Embed =======
+@st.cache_resource(show_spinner="📚 Thinking hard...")
 def setup_vector_db():
     documents = load_all_pdfs()
     embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en")
@@ -64,12 +49,21 @@ def setup_vector_db():
 
 retriever = setup_vector_db()
 
-# ======= Hugging Face LLM Setup =======
-HF_TOKEN = st.secrets["HF_TOKEN"]
-llm = HuggingFaceLLM(model_name="tiiuae/falcon-7b-instruct", hf_token=HF_TOKEN)
+# ======= Load HF Model & Wrap =======
+@st.cache_resource(show_spinner="🔗 Loading model pipeline...")
+def load_llm():
+    model_id = "tiiuae/falcon-rw-1b"  # ✅ Lightweight & open-access model (no gated error)
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    model = AutoModelForCausalLM.from_pretrained(model_id)
+    hf_pipeline = pipeline("text-generation", model=model, tokenizer=tokenizer, max_new_tokens=512)
+    return HuggingFacePipeline(pipeline=hf_pipeline)
+
+llm = load_llm()
+
+# ======= Retrieval Chain =======
 qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
-# ======= Chatbot Interaction =======
+# ======= Chat State & Interaction =======
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
@@ -80,7 +74,7 @@ if query:
         answer = qa_chain.run(query)
         st.session_state.chat.append({"question": query, "answer": answer})
 
-# ======= Display Chat =======
+# ======= Chat History =======
 for entry in reversed(st.session_state.chat):
     with st.chat_message("user"):
         st.markdown(entry["question"])
