@@ -38,7 +38,7 @@ def load_all_pdfs():
     return docs
 
 # ======= UI Config =======
-st.set_page_config(page_title="🎓 College Chatbot", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="🎓 Quillify", page_icon="🤖", layout="wide")
 st.markdown(
     """
     <style>
@@ -51,11 +51,11 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-st.markdown("<div class='big-title'>🎓 College ChatBot</div>", unsafe_allow_html=True)
+st.markdown("<div class='big-title'>🎓 Quillify</div>", unsafe_allow_html=True)
 st.markdown("<div class='subtitle'>Ask anything about BITS – syllabus, events, academics, policies, and more</div>", unsafe_allow_html=True)
 
 # ======= Load Embeddings and Vector DB Once =======
-@st.cache_resource(show_spinner="📚 Reading and embedding PDFs...")
+@st.cache_resource(show_spinner="📚 Thinking...")
 def setup_vector_db():
     documents = load_all_pdfs()
     embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en")
@@ -71,7 +71,7 @@ qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-query = st.chat_input("💬 Ask a question about college...")
+query = st.chat_input("💬 I know more about BITS than your CGPA does.")
 
 if query:
     with st.spinner("🤖 Thinking..."):
