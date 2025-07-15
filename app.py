@@ -36,7 +36,7 @@ st.markdown("<div class='big-title'>🦉 Quillify+</div>", unsafe_allow_html=Tru
 st.markdown("<div class='subtitle'>Ask anything about BITS – notes, rules, events, or 'em proxy hacks 😜</div>", unsafe_allow_html=True)
 
 # ========== Load & Embed Docs Once ==========
-@st.cache_resource(show_spinner="📚 Indexing your PDFs...")
+@st.cache_resource(show_spinner="📚 Thinking about you...")
 def setup_vector_db():
     documents = load_all_pdfs()
     embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en")
