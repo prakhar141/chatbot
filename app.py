@@ -8,9 +8,11 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 from langchain.chains import RetrievalQA
-from langchain_community.llms import Ollama  # 👈 New LLM here
+from langchain.chains.qa_with_sources import load_qa_with_sources_chain
+from langchain_community.llms import Ollama
+from langchain.prompts import PromptTemplate
 
-# ======= Load all PDFs from current directory =======
+# ========== Load all PDFs ==========
 def load_all_pdfs():
     docs = []
     splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=50)
@@ -22,63 +24,81 @@ def load_all_pdfs():
             docs.extend([Document(page_content=chunk, metadata={"source": file}) for chunk in chunks])
     return docs
 
-# ======= UI Config =======
-st.set_page_config(page_title="🎓 Quillify", page_icon="🤖", layout="wide")
-st.markdown(
-    """
+# ========== Streamlit Config ==========
+st.set_page_config(page_title="🎓 Quillify+", page_icon="🦉", layout="wide")
+st.markdown("""
     <style>
-        .big-title { font-size: 36px; font-weight: 800; margin-bottom: 10px; color: #3B82F6; }
+        .big-title { font-size: 38px; font-weight: bold; color: #0077b6; }
         .subtitle { font-size: 16px; color: gray; margin-top: -10px; }
-        .stTextInput > div > div > input {
-            font-size: 18px;
-        }
     </style>
-    """,
-    unsafe_allow_html=True,
-)
-st.markdown("<div class='big-title'>🎓 Quillify</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtitle'>Ask anything about BITS – syllabus, events, academics, policies, and more</div>", unsafe_allow_html=True)
+""", unsafe_allow_html=True)
+st.markdown("<div class='big-title'>🦉 Quillify+</div>", unsafe_allow_html=True)
+st.markdown("<div class='subtitle'>Ask anything about BITS – notes, rules, events, or 'em proxy hacks 😜</div>", unsafe_allow_html=True)
 
-# ======= Load Embeddings and Vector DB Once =======
-@st.cache_resource(show_spinner="📚 Thinking...")
+# ========== Load & Embed Docs Once ==========
+@st.cache_resource(show_spinner="📚 Indexing your PDFs...")
 def setup_vector_db():
     documents = load_all_pdfs()
     embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en")
     vectordb = FAISS.from_documents(documents, embeddings)
-    retriever = vectordb.as_retriever(search_type="similarity", k=4)
+    retriever = vectordb.as_retriever(search_type="mmr", k=4)  # ✅ MMR enabled
     return retriever
 
 retriever = setup_vector_db()
+llm = Ollama(model="llama3", temperature=0.3, streaming=True)
 
-# ======= Use Ollama instead of Gemini =======
-llm = Ollama(model="llama3", temperature=0.3)  # 👈 Can use 'mistral', 'llama3', etc.
-qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
+# ========== Custom Prompt ==========
+custom_prompt = PromptTemplate(
+    input_variables=["context", "question"],
+    template="""
+You're a helpful and humorous college assistant at BITS Pilani.
+Use only the context provided. No extra info.
 
-# ======= Chatbot Interaction =======
+Context:
+{context}
+
+Question: {question}
+
+Helpful, short and slightly witty answer:
+"""
+)
+
+qa_chain = RetrievalQA.from_chain_type(
+    llm=llm,
+    retriever=retriever,
+    chain_type_kwargs={"prompt": custom_prompt}
+)
+
+# ========== Chat Memory ==========
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-query = st.chat_input("💬 I know more about BITS than your CGPA does.")
+query = st.chat_input("💬 Ask me anything... even why the mess food tastes like cardboard.")
 
 if query:
     with st.spinner("🤖 Thinking..."):
         answer = qa_chain.run(query)
         st.session_state.chat.append({"question": query, "answer": answer})
 
-# ======= Display Chat =======
+# ========== Show Chat ==========
 for entry in reversed(st.session_state.chat):
     with st.chat_message("user"):
         st.markdown(entry["question"])
     with st.chat_message("assistant"):
         st.markdown(entry["answer"])
 
-# ======= Footer =======
-st.markdown(
-    """
-    <hr style="margin-top: 40px; margin-bottom: 10px;">
-    <div style='text-align: center; color: #aaa; font-size: 14px;'>
-        🤖 Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani ·
+# ========== Follow-Up Suggestions ==========
+if query:
+    st.markdown("#### 🤔 You might also ask:")
+    st.markdown("- What's the attendance policy?")
+    st.markdown("- How do I apply for makeup tests?")
+    st.markdown("- What clubs are active this semester?")
+    st.markdown("- How to complain about WiFi in the hostel?")
+
+# ========== Footer ==========
+st.markdown("""
+    <hr style="margin-top: 30px;">
+    <div style='text-align: center; font-size: 14px; color: gray;'>
+        🦉 Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani
     </div>
-    """,
-    unsafe_allow_html=True
-)
+""", unsafe_allow_html=True)
