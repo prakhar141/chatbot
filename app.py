@@ -1,29 +1,14 @@
 import os
 import fitz  # PyMuPDF
 import streamlit as st
-import google.generativeai as genai
 from typing import Optional, List
+
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 from langchain.chains import RetrievalQA
-from langchain.llms.base import LLM
-
-# ======= Gemini Wrapper =======
-class GeminiLLM(LLM):
-    model: str = "gemini-1.5-flash"
-    api_key: str = ""
-
-    def _call(self, prompt: str, stop: Optional[List[str]] = None) -> str:
-        genai.configure(api_key=self.api_key)
-        model = genai.GenerativeModel(self.model)
-        response = model.generate_content(prompt)
-        return response.text
-
-    @property
-    def _llm_type(self) -> str:
-        return "custom-gemini"
+from langchain_community.llms import Ollama  # 👈 New LLM here
 
 # ======= Load all PDFs from current directory =======
 def load_all_pdfs():
@@ -64,7 +49,9 @@ def setup_vector_db():
     return retriever
 
 retriever = setup_vector_db()
-llm = GeminiLLM(api_key=st.secrets["GEMINI_API_KEY"])
+
+# ======= Use Ollama instead of Gemini =======
+llm = Ollama(model="llama3", temperature=0.3)  # 👈 Can use 'mistral', 'llama3', etc.
 qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
 # ======= Chatbot Interaction =======
