@@ -6,39 +6,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 from langchain.chains import RetrievalQA
-from llama_index.core.llms import CustomLLM, CompletionResponse, LLMMetadata
-import google.generativeai as genai
-
-# ======= Custom Gemini LLM Wrapper =======
-class GeminiLLM(CustomLLM):
-    def __init__(self, api_key: str, model: str = "gemini-1.5-lite"):
-        super().__init__()
-        genai.configure(api_key=api_key)
-        self._model_name = model
-        self._model = genai.GenerativeModel(model)
-
-    @property
-    def context_window(self) -> int:
-        return 8192
-
-    @property
-    def num_output(self) -> int:
-        return 512
-
-    @property
-    def metadata(self) -> LLMMetadata:
-        return LLMMetadata(
-            context_window=self.context_window,
-            num_output=self.num_output,
-            model_name=self._model_name,
-        )
-
-    def complete(self, prompt: str, **kwargs) -> CompletionResponse:
-        response = self._model.generate_content(prompt)
-        return CompletionResponse(text=response.text)
-
-    def stream_complete(self, prompt: str, **kwargs):
-        raise NotImplementedError("Streaming not supported.")
+from langchain_google_genai import ChatGoogleGenerativeAI  # ✅ Gemini wrapper from LangChain
 
 # ======= Load all PDFs from current directory =======
 def load_all_pdfs():
@@ -64,8 +32,8 @@ st.markdown("""
 st.markdown("<div class='big-title'>🎓 Quillify</div>", unsafe_allow_html=True)
 st.markdown("<div class='subtitle'>Ask anything about BITS – syllabus, events, academics, policies, and more</div>", unsafe_allow_html=True)
 
-# ======= Embed and Index Documents =======
-@st.cache_resource(show_spinner="📚 Thinking...")
+# ======= Embedding + Vector DB =======
+@st.cache_resource(show_spinner="📚 Reading PDFs...")
 def setup_vector_db():
     documents = load_all_pdfs()
     embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en")
@@ -74,17 +42,18 @@ def setup_vector_db():
 
 retriever = setup_vector_db()
 
-# ======= Load Gemini LLM =======
+# ======= Load Gemini 1.5 Lite via LangChain =======
 @st.cache_resource(show_spinner="🔗 Connecting...")
 def load_llm():
-    return GeminiLLM(
-        api_key=st.secrets["GOOGLE_API_KEY"],
-        model="gemini-1.5-lite"
+    return ChatGoogleGenerativeAI(
+        model="models/gemini-1.5-lite",  # 👈 Use lite version
+        google_api_key=st.secrets["GOOGLE_API_KEY"],
+        temperature=0.3
     )
 
 llm = load_llm()
 
-# ======= Retrieval-Augmented QA =======
+# ======= Retrieval Chain =======
 qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
 # ======= Chat Interaction =======
