@@ -6,9 +6,41 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 from langchain.chains import RetrievalQA
-from langchain_google_genai import ChatGoogleGenerativeAI  # ✅ Gemini wrapper
+from llama_index.core.llms import CustomLLM, CompletionResponse, LLMMetadata
+import google.generativeai as genai
 
-# ======= Load PDFs from current directory =======
+# ======= Custom Gemini LLM Wrapper =======
+class GeminiLLM(CustomLLM):
+    def __init__(self, api_key: str, model: str = "gemini-1.5-lite"):
+        super().__init__()
+        genai.configure(api_key=api_key)
+        self._model_name = model
+        self._model = genai.GenerativeModel(model)
+
+    @property
+    def context_window(self) -> int:
+        return 8192
+
+    @property
+    def num_output(self) -> int:
+        return 512
+
+    @property
+    def metadata(self) -> LLMMetadata:
+        return LLMMetadata(
+            context_window=self.context_window,
+            num_output=self.num_output,
+            model_name=self._model_name,
+        )
+
+    def complete(self, prompt: str, **kwargs) -> CompletionResponse:
+        response = self._model.generate_content(prompt)
+        return CompletionResponse(text=response.text)
+
+    def stream_complete(self, prompt: str, **kwargs):
+        raise NotImplementedError("Streaming not supported.")
+
+# ======= Load all PDFs from current directory =======
 def load_all_pdfs():
     docs = []
     splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=50)
@@ -20,21 +52,19 @@ def load_all_pdfs():
             docs.extend([Document(page_content=chunk, metadata={"source": file}) for chunk in chunks])
     return docs
 
-# ======= UI Config =======
+# ======= Streamlit UI Setup =======
 st.set_page_config(page_title="🎓 Quillify", page_icon="🤖", layout="wide")
 st.markdown("""
     <style>
         .big-title { font-size: 36px; font-weight: 800; margin-bottom: 10px; color: #3B82F6; }
         .subtitle { font-size: 16px; color: gray; margin-top: -10px; }
-        .stTextInput > div > div > input {
-            font-size: 18px;
-        }
+        .stTextInput > div > div > input { font-size: 18px; }
     </style>
 """, unsafe_allow_html=True)
 st.markdown("<div class='big-title'>🎓 Quillify</div>", unsafe_allow_html=True)
 st.markdown("<div class='subtitle'>Ask anything about BITS – syllabus, events, academics, policies, and more</div>", unsafe_allow_html=True)
 
-# ======= Load Embeddings and Vector DB =======
+# ======= Embed and Index Documents =======
 @st.cache_resource(show_spinner="📚 Thinking...")
 def setup_vector_db():
     documents = load_all_pdfs()
@@ -44,21 +74,20 @@ def setup_vector_db():
 
 retriever = setup_vector_db()
 
-# ======= Gemini Chat Model (Replace Ollama) =======
-@st.cache_resource(show_spinner="🔗 Connecting to Gemini...")
+# ======= Load Gemini LLM =======
+@st.cache_resource(show_spinner="🔗 Connecting...")
 def load_llm():
-    return ChatGoogleGenerativeAI(
-        model="models/gemini-1.5-lite",
-        google_api_key=st.secrets["GOOGLE_API_KEY"],
-        temperature=0.3
+    return GeminiLLM(
+        api_key=st.secrets["GOOGLE_API_KEY"],
+        model="gemini-1.5-lite"
     )
 
 llm = load_llm()
 
-# ======= Retrieval Chain =======
+# ======= Retrieval-Augmented QA =======
 qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
-# ======= Chatbot Interaction =======
+# ======= Chat Interaction =======
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
@@ -69,7 +98,7 @@ if query:
         answer = qa_chain.run(query)
         st.session_state.chat.append({"question": query, "answer": answer})
 
-# ======= Display Chat =======
+# ======= Display Chat History =======
 for entry in reversed(st.session_state.chat):
     with st.chat_message("user"):
         st.markdown(entry["question"])
