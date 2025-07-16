@@ -1,13 +1,12 @@
 import os
 import fitz  # PyMuPDF
 import streamlit as st
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 from langchain.chains import RetrievalQA
-from langchain.llms import HuggingFacePipeline
+from langchain.chat_models import ChatOpenAI  # ✅ OpenAI model
 
 # ======= Load PDFs from current directory =======
 def load_all_pdfs():
@@ -49,14 +48,14 @@ def setup_vector_db():
 
 retriever = setup_vector_db()
 
-# ======= Load HuggingFace LLM =======
-@st.cache_resource(show_spinner="🔗 Loading model pipeline...")
+# ======= Load OpenAI Chat Model =======
+@st.cache_resource(show_spinner="🔗 Loading GPT...")
 def load_llm():
-    model_id = "google/flan-t5-small"  # ✅ Small, efficient and open-access
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
-    pipe = pipeline("text2text-generation", model=model, tokenizer=tokenizer, max_new_tokens=512)
-    return HuggingFacePipeline(pipeline=pipe)
+    return ChatOpenAI(
+        model_name="gpt-3.5-turbo",  # Or use "gpt-4" if available
+        temperature=0.3,
+        openai_api_key=st.secrets["OPENAI_API_KEY"]
+    )
 
 llm = load_llm()
 
