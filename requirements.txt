@@ -4,4 +4,4 @@ faiss-cpu
 sentence-transformers
 PyMuPDF
 langchain-community
-
+openai
