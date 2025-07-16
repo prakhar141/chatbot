@@ -55,7 +55,7 @@ def load_llm():
     model_id = "microsoft/phi-1_5"
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     model = AutoModelForCausalLM.from_pretrained(model_id)
-    pipe = pipeline("text-generation", model=model, tokenizer=tokenizer, max_new_tokens=512)
+    pipe = pipeline("text-generation", model=model, tokenizer=tokenizer, max_new_tokens=256)
     return HuggingFacePipeline(pipeline=pipe)
 
 llm = load_llm()
