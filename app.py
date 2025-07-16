@@ -48,7 +48,7 @@ retriever = setup_vector_db()
 @st.cache_resource(show_spinner="🔗 Connecting to Gemini...")
 def load_llm():
     return ChatGoogleGenerativeAI(
-        model="gemini-pro",
+        model="models/gemini-1.5-lite",
         google_api_key=st.secrets["GOOGLE_API_KEY"],
         temperature=0.3
     )
