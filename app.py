@@ -52,7 +52,7 @@ retriever = setup_vector_db()
 # ======= Load HuggingFace LLM =======
 @st.cache_resource(show_spinner="🔗 Loading model pipeline...")
 def load_llm():
-    model_id = "google/flan-t5-base"  # ✅ Small, efficient and open-access
+    model_id = "google/flan-t5-small"  # ✅ Small, efficient and open-access
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
     pipe = pipeline("text2text-generation", model=model, tokenizer=tokenizer, max_new_tokens=512)
