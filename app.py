@@ -1,13 +1,12 @@
 import os
 import fitz  # PyMuPDF
 import streamlit as st
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
-from langchain.llms import HuggingFacePipeline
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 from langchain.chains import RetrievalQA
+from langchain_google_genai import ChatGoogleGenerativeAI  # ✅ Gemini wrapper from LangChain
 
 # ======= Load all PDFs from current directory =======
 def load_all_pdfs():
@@ -34,7 +33,7 @@ st.markdown("<div class='big-title'>🎓 Quillify</div>", unsafe_allow_html=True
 st.markdown("<div class='subtitle'>Ask anything about BITS – syllabus, events, academics, policies, and more</div>", unsafe_allow_html=True)
 
 # ======= Embedding + Vector DB =======
-@st.cache_resource(show_spinner="📚 Thinking...")
+@st.cache_resource(show_spinner="📚 Reading...")
 def setup_vector_db():
     documents = load_all_pdfs()
     embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en")
@@ -43,14 +42,14 @@ def setup_vector_db():
 
 retriever = setup_vector_db()
 
-# ======= Load LaMini-Flan-T5-783M Locally =======
-@st.cache_resource(show_spinner="🔗 Loading LLM...")
+# ======= Load Gemini 1.5 Lite via LangChain =======
+@st.cache_resource(show_spinner="🔗 Connecting...")
 def load_llm():
-    model_id = "MBZUAI/LaMini-Flan-T5-783M"
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
-    pipe = pipeline("text2text-generation", model=model, tokenizer=tokenizer, max_new_tokens=512)
-    return HuggingFacePipeline(pipeline=pipe)
+    return ChatGoogleGenerativeAI(
+        model="models/gemini-1.5-flash",  # 👈 Use lite version
+        google_api_key=st.secrets["GOOGLE_API_KEY"],
+        temperature=0.3
+    )
 
 llm = load_llm()
 
