@@ -1,13 +1,13 @@
 import os
 import fitz  # PyMuPDF
 import streamlit as st
-from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 from langchain.chains import RetrievalQA
-from langchain.llms import HuggingFacePipeline  # ✅ Proper LLM wrapper
+from langchain.llms import HuggingFacePipeline
 
 # ======= Load PDFs from current directory =======
 def load_all_pdfs():
@@ -49,14 +49,14 @@ def setup_vector_db():
 
 retriever = setup_vector_db()
 
-# ======= Load HF Model & Wrap =======
+# ======= Load HuggingFace LLM =======
 @st.cache_resource(show_spinner="🔗 Loading model pipeline...")
 def load_llm():
-    model_id = "tiiuae/falcon-rw-1b"  # ✅ Lightweight & open-access model (no gated error)
+    model_id = "google/flan-t5-base"  # ✅ Small, efficient and open-access
     tokenizer = AutoTokenizer.from_pretrained(model_id)
-    model = AutoModelForCausalLM.from_pretrained(model_id)
-    hf_pipeline = pipeline("text-generation", model=model, tokenizer=tokenizer, max_new_tokens=512)
-    return HuggingFacePipeline(pipeline=hf_pipeline)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
+    pipe = pipeline("text2text-generation", model=model, tokenizer=tokenizer, max_new_tokens=512)
+    return HuggingFacePipeline(pipeline=pipe)
 
 llm = load_llm()
 
