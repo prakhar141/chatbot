@@ -6,3 +6,4 @@ sentence-transformers
 PyMuPDF
 google-generativeai
 langchain-google-genai
+python-dotenv
