@@ -6,8 +6,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 from langchain.chains import RetrievalQA
-from langchain_google_genai import ChatGoogleGenerativeAI
-from google.api_core.exceptions import TooManyRequests
+from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
 
 # ========== UI Setup ==========
 st.set_page_config(page_title="🎓 Quillify", page_icon="🤖", layout="wide")
@@ -40,33 +39,33 @@ def setup_vector_db():
     vectordb = FAISS.from_documents(documents, embeddings)
     return vectordb.as_retriever(search_type="similarity", k=4)
 
-# ========== Gemini LLM Loading ==========
-@st.cache_resource(show_spinner="🤖 Warming up LLM...")
-def load_llm():
-    try:
-        return ChatGoogleGenerativeAI(
-            model="models/gemini-1.5-flash",
-            google_api_key=st.secrets["GOOGLE_API_KEY"],
-            temperature=0.3
-        )
-    except TooManyRequests:
-        st.error("😵 Gemini API quota exceeded or rate limited. Please try later.")
-        st.stop()
+# ========== Load LaMini-Flan Model ==========
+@st.cache_resource(show_spinner="🤖 Loading LaMini-Flan LLM...")
+def load_lamini_pipeline():
+    tokenizer = AutoTokenizer.from_pretrained("MBZUAI/LaMini-Flan-T5-783M")
+    model = AutoModelForSeq2SeqLM.from_pretrained("MBZUAI/LaMini-Flan-T5-783M")
+    return pipeline("text2text-generation", model=model, tokenizer=tokenizer, max_new_tokens=300)
 
-# ========== Retrieval Chain ==========
+# ========== Retrieval + LLM Chain ==========
 retriever = setup_vector_db()
-llm = load_llm()
-qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
+lamini_pipe = load_lamini_pipeline()
+
+def get_answer(query):
+    context_docs = retriever.get_relevant_documents(query)
+    context_text = "\n\n".join([doc.page_content for doc in context_docs])
+    prompt = f"Answer the following question based on the context:\n\nContext:\n{context_text}\n\nQuestion: {query}"
+    result = lamini_pipe(prompt)
+    return result[0]["generated_text"]
 
 # ========== User Tracking ==========
-user_id = st.user.get("email", "anonymous_user")  # ✅ Updated line here
+user_id = st.user.get("email", "anonymous_user")
 if "user_log" not in st.session_state:
     st.session_state.user_log = set()
 if user_id not in st.session_state.user_log:
     st.session_state.user_log.add(user_id)
     st.info(f"👋 New user session started: `{user_id}`")
 
-# ========== Chat UI ==========
+# ========== Chat Interface ==========
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
@@ -75,12 +74,12 @@ query = st.chat_input("💬 Ask me anything about BITS...")
 if query:
     with st.spinner("🤖 Thinking..."):
         try:
-            answer = qa_chain.run(query)
+            answer = get_answer(query)
         except Exception as e:
-            answer = f"❌ Failed to process your query due to: `{str(e)}`"
+            answer = f"❌ Error: {str(e)}"
         st.session_state.chat.append({"question": query, "answer": answer})
 
-# ========== Display Chat History ==========
+# ========== Chat History ==========
 for entry in reversed(st.session_state.chat):
     with st.chat_message("user"):
         st.markdown(entry["question"])
