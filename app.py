@@ -1,14 +1,17 @@
 import os
 import fitz  # PyMuPDF
 import streamlit as st
-import google.generativeai as genai
+from openai import OpenAI
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 
-# ========== Gemini API Setup ==========
-genai.configure(api_key=os.getenv("GEMINI_API_KEY") or "YOUR_GEMINI_API_KEY")
+# ========== OpenAI (ChatAnywhere) Setup ==========
+openai_client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY") or "sk-REPLACE_WITH_YOUR_KEY",
+    base_url="https://api.chatanywhere.tech/v1"
+)
 
 # ========== UI Setup ==========
 st.set_page_config(page_title="🎓 Quillify", page_icon="🤖", layout="wide")
@@ -34,21 +37,16 @@ def load_all_pdfs():
             docs.extend([Document(page_content=chunk, metadata={"source": file}) for chunk in chunks])
     return docs
 
-@st.cache_resource(show_spinner="📚 Indexing PDFs...")
+@st.cache_resource(show_spinner="📚 Indexing...")
 def setup_vector_db():
     documents = load_all_pdfs()
     embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en")
     vectordb = FAISS.from_documents(documents, embeddings)
     return vectordb.as_retriever(search_type="similarity", k=2)
 
-# ========== Load Gemini Model ==========
-@st.cache_resource(show_spinner="🤖 Loading ...") 
-def load_gemini_model():
-    return genai.GenerativeModel("gemini-1.5-flash")
-
 retriever = setup_vector_db()
-gemini_model = load_gemini_model()
 
+# ========== OpenAI Answering ==========
 def get_answer(query):
     context_docs = retriever.get_relevant_documents(query)
     context_text = "\n\n".join([doc.page_content for doc in context_docs])
@@ -62,13 +60,23 @@ Context:
 
 Question: {query}
 """
-    
-    # 🔹 Optional: Show full prompt
-    with st.expander("🧠 Prompt sent "):
+
+    # 🔍 Show the prompt
+    with st.expander("🧠 Prompt sent"):
         st.code(prompt)
 
-    response = gemini_model.generate_content(prompt)
-    return response.text.strip()
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant answering questions about BITS Pilani based on context."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
 
 # ========== User Tracking ==========
 user_id = st.user.get("email", "anonymous_user")
@@ -86,10 +94,7 @@ query = st.chat_input("💬 Ask me anything about BITS...")
 
 if query:
     with st.spinner("🤖 Thinking..."):
-        try:
-            answer = get_answer(query)
-        except Exception as e:
-            answer = f"❌ Error: {str(e)}"
+        answer = get_answer(query)
         st.session_state.chat.append({"question": query, "answer": answer})
 
 # ========== Chat History ==========
