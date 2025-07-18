@@ -7,3 +7,4 @@ PyMuPDF
 google-generativeai
 langchain-google-genai
 python-dotenv
+openai
