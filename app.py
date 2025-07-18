@@ -59,7 +59,7 @@ llm = load_llm()
 qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
 # ========== User Tracking ==========
-user_id = st.experimental_user.get("email", "anonymous_user")
+user_id = st.user.get("email", "anonymous_user")  # ✅ Updated line here
 if "user_log" not in st.session_state:
     st.session_state.user_log = set()
 if user_id not in st.session_state.user_log:
