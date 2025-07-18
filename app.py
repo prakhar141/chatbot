@@ -1,17 +1,16 @@
 import os
 import fitz  # PyMuPDF
 import streamlit as st
-from openai import OpenAI
+import google.generativeai as genai
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
+from dotenv import load_dotenv
 
-# ========== OpenAI (ChatAnywhere) Setup ==========
-openai_client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY") or "sk-REPLACE_WITH_YOUR_KEY",
-    base_url="https://api.chatanywhere.tech/v1"
-)
+# ========== Load Env Vars ==========
+load_dotenv()
+genai.configure(api_key=os.getenv("GEMINI_API_KEY") or "REPLACE_WITH_YOUR_API_KEY")
 
 # ========== UI Setup ==========
 st.set_page_config(page_title="🎓 Quillify", page_icon="🤖", layout="wide")
@@ -46,14 +45,14 @@ def setup_vector_db():
 
 retriever = setup_vector_db()
 
-# ========== OpenAI Answering ==========
+# ========== Gemini Answering ==========
 def get_answer(query):
     context_docs = retriever.get_relevant_documents(query)
     context_text = "\n\n".join([doc.page_content for doc in context_docs])
     
-    prompt = f"""You are a helpful assistant answering questions based on BITS Pilani PDFs.
+    prompt = f"""You are a helpful assistant answering questions based on BITS Pilani documents.
 
-Answer the following question using only the given context.
+Only use the provided context to answer. Do not hallucinate or make up data.
 
 Context:
 {context_text}
@@ -61,20 +60,13 @@ Context:
 Question: {query}
 """
 
-    # 🔍 Show the prompt
     with st.expander("🧠 Prompt sent"):
         st.code(prompt)
 
     try:
-        response = openai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant answering questions about BITS Pilani based on context."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7
-        )
-        return response.choices[0].message.content.strip()
+        model = genai.GenerativeModel("gemini-pro")
+        response = model.generate_content(prompt)
+        return response.text.strip()
     except Exception as e:
         return f"❌ Error: {str(e)}"
 
