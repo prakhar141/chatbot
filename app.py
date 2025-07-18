@@ -1,11 +1,14 @@
 import os
 import fitz  # PyMuPDF
 import streamlit as st
+import google.generativeai as genai
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
-from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
+
+# ========== Gemini API Setup ==========
+genai.configure(api_key=os.getenv("GEMINI_API_KEY") or "YOUR_GEMINI_API_KEY")
 
 # ========== UI Setup ==========
 st.set_page_config(page_title="🎓 Quillify", page_icon="🤖", layout="wide")
@@ -22,7 +25,7 @@ st.markdown("<div class='subtitle'>Ask anything about BITS – syllabus, events,
 # ========== PDF Loading ==========
 def load_all_pdfs():
     docs = []
-    splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)  # 🔹 smaller chunks to avoid overflow
+    splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
     for file in os.listdir():
         if file.endswith(".pdf"):
             with fitz.open(file) as doc:
@@ -36,36 +39,36 @@ def setup_vector_db():
     documents = load_all_pdfs()
     embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en")
     vectordb = FAISS.from_documents(documents, embeddings)
-    return vectordb.as_retriever(search_type="similarity", k=2)  # 🔹 fewer docs to stay under token limit
+    return vectordb.as_retriever(search_type="similarity", k=2)
 
-# ========== Load LaMini-Flan Model ==========
-@st.cache_resource(show_spinner="🤖 Loading LaMini-Flan LLM...")
-def load_lamini_pipeline():
-    tokenizer = AutoTokenizer.from_pretrained("MBZUAI/LaMini-Flan-T5-783M")
-    model = AutoModelForSeq2SeqLM.from_pretrained("MBZUAI/LaMini-Flan-T5-783M")
-    return pipeline("text2text-generation", model=model, tokenizer=tokenizer, max_new_tokens=300)
+# ========== Load Gemini Model ==========
+@st.cache_resource(show_spinner="🤖 Loading ...") 
+def load_gemini_model():
+    return genai.GenerativeModel("gemini-1.5-flash")
 
-# ========== Retrieval + LLM Chain ==========
 retriever = setup_vector_db()
-lamini_pipe = load_lamini_pipeline()
+gemini_model = load_gemini_model()
 
 def get_answer(query):
     context_docs = retriever.get_relevant_documents(query)
     context_text = "\n\n".join([doc.page_content for doc in context_docs])
-
-    # 🔹 Limit context tokens to fit within 512-token model limit
-    tokenizer = lamini_pipe.tokenizer
-    context_tokens = tokenizer.encode(context_text, truncation=True, max_length=400)
-    context_text = tokenizer.decode(context_tokens, skip_special_tokens=True)
-
-    prompt = f"Answer the following question based on the context:\n\nContext:\n{context_text}\n\nQuestion: {query}"
     
-    # 🔹 Optional: Show prompt for debugging
-    with st.expander("🧠 Prompt sent to LaMini-Flan"):
+    prompt = f"""You are a helpful assistant answering questions based on BITS Pilani PDFs.
+
+Answer the following question using only the given context.
+
+Context:
+{context_text}
+
+Question: {query}
+"""
+    
+    # 🔹 Optional: Show full prompt
+    with st.expander("🧠 Prompt sent "):
         st.code(prompt)
-    
-    result = lamini_pipe(prompt)
-    return result[0]["generated_text"]
+
+    response = gemini_model.generate_content(prompt)
+    return response.text.strip()
 
 # ========== User Tracking ==========
 user_id = st.user.get("email", "anonymous_user")
