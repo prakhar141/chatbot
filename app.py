@@ -13,7 +13,7 @@ load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY") or "REPLACE_WITH_YOUR_API_KEY")
 
 # ========== UI Setup ==========
-st.set_page_config(page_title="🎓 Quillify", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="🎓 Quillify", layout="wide")
 st.markdown("""
     <style>
         .big-title { font-size: 36px; font-weight: 800; margin-bottom: 10px; color: #3B82F6; }
@@ -36,7 +36,7 @@ def load_all_pdfs():
             docs.extend([Document(page_content=chunk, metadata={"source": file}) for chunk in chunks])
     return docs
 
-@st.cache_resource(show_spinner="📚 Indexing...")
+@st.cache_resource(show_spinner="📚 Reading...")
 def setup_vector_db():
     documents = load_all_pdfs()
     embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en")
@@ -85,7 +85,7 @@ if "chat" not in st.session_state:
 query = st.chat_input("💬 Ask me anything about BITS...")
 
 if query:
-    with st.spinner("🤖 Thinking..."):
+    with st.spinner("Thinking..."):
         answer = get_answer(query)
         st.session_state.chat.append({"question": query, "answer": answer})
 
@@ -100,6 +100,6 @@ for entry in reversed(st.session_state.chat):
 st.markdown("""
     <hr style="margin-top: 40px; margin-bottom: 10px;">
     <div style='text-align: center; color: #aaa; font-size: 14px;'>
-        🤖 Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani ·
+         Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani ·
     </div>
 """, unsafe_allow_html=True)
