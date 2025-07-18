@@ -5,7 +5,6 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
-from langchain.chains import RetrievalQA
 from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
 
 # ========== UI Setup ==========
@@ -23,7 +22,7 @@ st.markdown("<div class='subtitle'>Ask anything about BITS – syllabus, events,
 # ========== PDF Loading ==========
 def load_all_pdfs():
     docs = []
-    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=50)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)  # 🔹 smaller chunks to avoid overflow
     for file in os.listdir():
         if file.endswith(".pdf"):
             with fitz.open(file) as doc:
@@ -37,7 +36,7 @@ def setup_vector_db():
     documents = load_all_pdfs()
     embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en")
     vectordb = FAISS.from_documents(documents, embeddings)
-    return vectordb.as_retriever(search_type="similarity", k=4)
+    return vectordb.as_retriever(search_type="similarity", k=2)  # 🔹 fewer docs to stay under token limit
 
 # ========== Load LaMini-Flan Model ==========
 @st.cache_resource(show_spinner="🤖 Loading LaMini-Flan LLM...")
@@ -53,7 +52,18 @@ lamini_pipe = load_lamini_pipeline()
 def get_answer(query):
     context_docs = retriever.get_relevant_documents(query)
     context_text = "\n\n".join([doc.page_content for doc in context_docs])
+
+    # 🔹 Limit context tokens to fit within 512-token model limit
+    tokenizer = lamini_pipe.tokenizer
+    context_tokens = tokenizer.encode(context_text, truncation=True, max_length=400)
+    context_text = tokenizer.decode(context_tokens, skip_special_tokens=True)
+
     prompt = f"Answer the following question based on the context:\n\nContext:\n{context_text}\n\nQuestion: {query}"
+    
+    # 🔹 Optional: Show prompt for debugging
+    with st.expander("🧠 Prompt sent to LaMini-Flan"):
+        st.code(prompt)
+    
     result = lamini_pipe(prompt)
     return result[0]["generated_text"]
 
