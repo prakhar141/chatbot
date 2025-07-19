@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 openai.api_key = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
 openai.api_base = "https://openrouter.ai/api/v1"
-MODEL_NAME = "deepseek/deepseek-r1-0528:free"
+MODEL_NAME = "deepseek/deepseek-r1:free"
 
 # ========== UI Setup ==========
 st.set_page_config(page_title="🎓 Quillify", layout="wide")
