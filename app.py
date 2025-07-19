@@ -1,7 +1,7 @@
 import os
 import fitz  # PyMuPDF
 import streamlit as st
-import google.generativeai as genai
+import openai
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -10,7 +10,9 @@ from dotenv import load_dotenv
 
 # ========== Load Env Vars ==========
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY") or "REPLACE_WITH_YOUR_API_KEY")
+openai.api_key = os.getenv("OPENROUTER_API_KEY") or "REPLACE_WITH_YOUR_KEY"
+openai.api_base = "https://openrouter.ai/api/v1"
+MODEL_NAME = "deepseek/deepseek-r1-0528:free"
 
 # ========== UI Setup ==========
 st.set_page_config(page_title="🎓 Quillify", layout="wide")
@@ -45,7 +47,7 @@ def setup_vector_db():
 
 retriever = setup_vector_db()
 
-# ========== Gemini Answering ==========
+# ========== OpenRouter Answering ==========
 def get_answer(query):
     context_docs = retriever.get_relevant_documents(query)
     context_text = "\n\n".join([doc.page_content for doc in context_docs])
@@ -64,9 +66,14 @@ Question: {query}
         st.code(prompt)
 
     try:
-        model = genai.GenerativeModel("gemini-pro")
-        response = model.generate_content(prompt)
-        return response.text.strip()
+        response = openai.ChatCompletion.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "You are a BITS Pilani assistant who answers accurately using only the given documents."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return response['choices'][0]['message']['content'].strip()
     except Exception as e:
         return f"❌ Error: {str(e)}"
 
