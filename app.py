@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 # ========== Load Env Vars ==========
 load_dotenv()
-openai.api_key = os.getenv("OPENROUTER_API_KEY") or "REPLACE_WITH_YOUR_KEY"
+openai.api_key = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
 openai.api_base = "https://openrouter.ai/api/v1"
 MODEL_NAME = "deepseek/deepseek-r1-0528:free"
 
