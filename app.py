@@ -1,7 +1,6 @@
 import os
 import fitz  # PyMuPDF
 import streamlit as st
-import openai
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
