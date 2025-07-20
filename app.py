@@ -1,18 +1,17 @@
 import os
 import fitz  # PyMuPDF
-import openai
 import streamlit as st
+import requests
+from dotenv import load_dotenv
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
-from dotenv import load_dotenv
 
 # ========== Load Env Vars ==========
 load_dotenv()
-openai.api_key = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
-openai.api_base = "https://openrouter.ai/api/v1"
-MODEL_NAME = "deepseek/deepseek-r1:free"
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
+MODEL_NAME = "deepseek/deepseek-chat:free"
 
 # ========== UI Setup ==========
 st.set_page_config(page_title="🎓 Quillify", layout="wide")
@@ -51,7 +50,7 @@ retriever = setup_vector_db()
 def get_answer(query):
     context_docs = retriever.get_relevant_documents(query)
     context_text = "\n\n".join([doc.page_content for doc in context_docs])
-    
+
     prompt = f"""You are a helpful assistant answering questions based on BITS Pilani documents.
 
 Only use the provided context to answer. Do not hallucinate or make up data.
@@ -65,15 +64,25 @@ Question: {query}
     with st.expander("🧠 Prompt sent"):
         st.code(prompt)
 
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://chat.openai.com",  # optional; change for deployment
+        "X-Title": "Quillify BITS Assistant"
+    }
+
+    payload = {
+        "model": MODEL_NAME,
+        "messages": [
+            {"role": "system", "content": "You are a BITS Pilani assistant who answers accurately using only the given documents."},
+            {"role": "user", "content": prompt}
+        ]
+    }
+
     try:
-        response = openai.ChatCompletion.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": "You are a BITS Pilani assistant who answers accurately using only the given documents."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        return response['choices'][0]['message']['content'].strip()
+        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+        response.raise_for_status()
+        return response.json()['choices'][0]['message']['content'].strip()
     except Exception as e:
         return f"❌ Error: {str(e)}"
 
@@ -92,7 +101,7 @@ if "chat" not in st.session_state:
 query = st.chat_input("💬 Ask me anything about BITS...")
 
 if query:
-    with st.spinner("Thinking..."):
+    with st.spinner("🤖 Thinking..."):
         answer = get_answer(query)
         st.session_state.chat.append({"question": query, "answer": answer})
 
