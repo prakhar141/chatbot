@@ -14,7 +14,7 @@ MODEL_NAME = "deepseek/deepseek-chat:free"
 # ========== UI Setup ==========
 st.set_page_config(page_title="📄 BITSianGPT - Chat with PDFs", layout="wide")
 st.title("🎓 Welcome to BITSianGPT")
-st.markdown("Ask anything from your local PDFs (like Bhawan Guide, Events, Clubs). No uploads needed.")
+st.markdown("Ask anything like Bhawan Guide, Events, Clubs")
 
 # ========== Reset Button ==========
 if st.button("🔁 Reset Chat"):
@@ -23,7 +23,7 @@ if st.button("🔁 Reset Chat"):
     st.experimental_rerun()
 
 # ========== Load PDFs from Current Directory ==========
-@st.cache_resource(show_spinner="📚 Indexing all PDFs... Please wait.")
+@st.cache_resource(show_spinner="📚 Preparing... Please wait.")
 def build_vector_db_from_folder(folder_path="."):
     docs = []
     splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=50)
@@ -77,7 +77,7 @@ retriever = build_vector_db_from_folder()
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-query = st.chat_input("💬 Ask something about the documents…")
+query = st.chat_input("💬 Ask something about the BITS…")
 
 if query:
     with st.spinner("🤖 Thinking..."):
