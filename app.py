@@ -13,7 +13,7 @@ MODEL_NAME = "deepseek/deepseek-chat:free"
 
 # ========== UI Setup ==========
 st.set_page_config(page_title="📄 Quiliffy", layout="wide")
-st.title("🎓 Welcome to BITSianGPT")
+st.title("🎓 Welcome to Quiliffy")
 st.markdown("Ask anything like Bhawan Guide, Events, Clubs")
 
 # ========== Reset Button ==========
