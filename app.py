@@ -14,7 +14,7 @@ MODEL_NAME = "deepseek/deepseek-chat:free"  # ✅ Free model
 # ========== UI Setup ==========
 st.set_page_config(page_title="📄 Quiliffy", layout="wide")
 st.title("📘 Chat with your PDFs")
-st.markdown("This app reads **all PDFs** from the `./pdfs/` folder. Ask anything!")
+st.markdown("This app reads **all PDFs** from the current directory. Ask anything!")
 
 # ========== PDF Folder Setup ==========
 PDF_FOLDER = "."
@@ -28,11 +28,19 @@ def build_vector_db_from_all_pdfs(folder_path):
     for filename in os.listdir(folder_path):
         if filename.endswith(".pdf"):
             file_path = os.path.join(folder_path, filename)
-            with fitz.open(file_path) as doc:
-                text = "\n".join([page.get_text() for page in doc])
-            chunks = splitter.split_text(text)
-            docs = [Document(page_content=chunk, metadata={"source": filename}) for chunk in chunks]
-            all_docs.extend(docs)
+            try:
+                with fitz.open(file_path) as doc:
+                    text = "\n".join([page.get_text() for page in doc])
+                chunks = splitter.split_text(text)
+                docs = [Document(page_content=chunk, metadata={"source": filename}) for chunk in chunks]
+                all_docs.extend(docs)
+            except Exception as e:
+                st.warning(f"⚠️ Skipped `{filename}` due to error: {e}")
+                continue
+
+    if not all_docs:
+        st.error("❌ No readable PDFs found.")
+        st.stop()
 
     embedder = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en")
     vectordb = FAISS.from_documents(all_docs, embedder)
@@ -42,7 +50,7 @@ def build_vector_db_from_all_pdfs(folder_path):
 def ask_deepseek(context, query):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://chat.openai.com",  # optional, for API usage tracking
+        "HTTP-Referer": "https://chat.openai.com",
         "X-Title": "PDF Chatbot"
     }
     messages = [
@@ -50,15 +58,26 @@ def ask_deepseek(context, query):
         {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}
     ]
     payload = {"model": MODEL_NAME, "messages": messages}
-    response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
-    return response.json()["choices"][0]["message"]["content"]
 
-# ========== Load Vector DB ==========
+    try:
+        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        if "choices" not in data:
+            return f"⚠️ API Error: {data.get('error', {}).get('message', 'No response from model')}"
+        return data["choices"][0]["message"]["content"]
+    except requests.exceptions.RequestException as e:
+        return f"❌ Request error: {str(e)}"
+    except Exception as e:
+        return f"❌ Unexpected error: {str(e)}"
+
+# ========== Load PDFs ==========
 pdf_files = [f for f in os.listdir(PDF_FOLDER) if f.endswith(".pdf")]
 if not pdf_files:
     st.error("❌ No PDF files found in the current directory.")
     st.stop()
 
+st.info(f"🔎 Found {len(pdf_files)} PDF(s) in this directory.")
 retriever = build_vector_db_from_all_pdfs(PDF_FOLDER)
 st.success("✅ All PDFs indexed. You can now ask questions.")
 
@@ -75,7 +94,7 @@ if query:
             context = "\n\n".join([doc.page_content for doc in docs])
             answer = ask_deepseek(context, query)
         except Exception as e:
-            answer = f"❌ Error: {str(e)}"
+            answer = f"❌ Error during chat: {str(e)}"
         st.session_state.chat.append({"question": query, "answer": answer, "sources": docs})
 
 # ========== Chat History ==========
@@ -84,8 +103,9 @@ for chat in reversed(st.session_state.chat):
         st.markdown(chat["question"])
     with st.chat_message("assistant"):
         st.markdown(chat["answer"])
-        for doc in chat["sources"]:
-            st.caption(f"📄 Source: `{doc.metadata['source']}`")
+        if chat.get("sources"):
+            for doc in chat["sources"]:
+                st.caption(f"📄 Source: `{doc.metadata.get('source', 'unknown.pdf')}`")
 
 # ========== Footer ==========
 st.markdown("""
