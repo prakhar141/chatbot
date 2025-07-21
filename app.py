@@ -2,120 +2,95 @@ import os
 import fitz  # PyMuPDF
 import streamlit as st
 import requests
-from dotenv import load_dotenv
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 
-# ========== Load Env Vars ==========
-load_dotenv()
+# ========== API Setup ==========
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
-MODEL_NAME = "deepseek/deepseek-chat:free"
+MODEL_NAME = "deepseek/deepseek-chat:free"  # ✅ Free model
 
 # ========== UI Setup ==========
-st.set_page_config(page_title="🎓 Quillify", layout="wide")
-st.markdown("""
-    <style>
-        .big-title { font-size: 36px; font-weight: 800; margin-bottom: 10px; color: #3B82F6; }
-        .subtitle { font-size: 16px; color: gray; margin-top: -10px; }
-        .stTextInput > div > div > input { font-size: 18px; }
-    </style>
-""", unsafe_allow_html=True)
-st.markdown("<div class='big-title'>🎓 Quillify</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtitle'>Ask anything about BITS – syllabus, events, academics, policies, and more</div>", unsafe_allow_html=True)
+st.set_page_config(page_title="📄 Quiliffy", layout="wide")
+st.title("📘 Chat with your PDFs")
+st.markdown("This app reads **all PDFs** from the `./pdfs/` folder. Ask anything!")
 
-# ========== PDF Loading ==========
-def load_all_pdfs():
-    docs = []
-    splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
-    for file in os.listdir():
-        if file.endswith(".pdf"):
-            with fitz.open(file) as doc:
-                full_text = "\n".join([page.get_text() for page in doc])
-            chunks = splitter.split_text(full_text)
-            docs.extend([Document(page_content=chunk, metadata={"source": file}) for chunk in chunks])
-    return docs
+# ========== PDF Folder Setup ==========
+PDF_FOLDER = "./pdfs"
 
-@st.cache_resource(show_spinner="📚 Reading...")
-def setup_vector_db():
-    documents = load_all_pdfs()
-    embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en")
-    vectordb = FAISS.from_documents(documents, embeddings)
-    return vectordb.as_retriever(search_type="similarity", k=2)
+# ========== PDF Processing ==========
+@st.cache_resource(show_spinner="📚 Reading & indexing all PDFs...")
+def build_vector_db_from_all_pdfs(folder_path):
+    all_docs = []
+    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=50)
 
-retriever = setup_vector_db()
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".pdf"):
+            file_path = os.path.join(folder_path, filename)
+            with fitz.open(file_path) as doc:
+                text = "\n".join([page.get_text() for page in doc])
+            chunks = splitter.split_text(text)
+            docs = [Document(page_content=chunk, metadata={"source": filename}) for chunk in chunks]
+            all_docs.extend(docs)
 
-# ========== OpenRouter Answering ==========
-def get_answer(query):
-    context_docs = retriever.get_relevant_documents(query)
-    context_text = "\n\n".join([doc.page_content for doc in context_docs])
+    embedder = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en")
+    vectordb = FAISS.from_documents(all_docs, embedder)
+    return vectordb.as_retriever(search_type="similarity", k=4)
 
-    prompt = f"""You are a helpful assistant answering questions based on BITS Pilani documents.
-
-Only use the provided context to answer. Do not hallucinate or make up data.
-
-Context:
-{context_text}
-
-Question: {query}
-"""
-
-    with st.expander("🧠 Prompt sent"):
-        st.code(prompt)
-
+# ========== Chat Function ==========
+def ask_deepseek(context, query):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://chat.openai.com",  # optional; change for deployment
-        "X-Title": "Quillify BITS Assistant"
+        "HTTP-Referer": "https://chat.openai.com",  # optional, for API usage tracking
+        "X-Title": "PDF Chatbot"
     }
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant. Use the provided context to answer questions."},
+        {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}
+    ]
+    payload = {"model": MODEL_NAME, "messages": messages}
+    response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+    return response.json()["choices"][0]["message"]["content"]
 
-    payload = {
-        "model": MODEL_NAME,
-        "messages": [
-            {"role": "system", "content": "You are a BITS Pilani assistant who answers accurately using only the given documents."},
-            {"role": "user", "content": prompt}
-        ]
-    }
+# ========== Load Vector DB ==========
+if not os.path.exists(PDF_FOLDER):
+    st.error("❌ The folder `./pdfs/` does not exist. Please create it and add some PDFs.")
+    st.stop()
 
-    try:
-        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
-        response.raise_for_status()
-        return response.json()['choices'][0]['message']['content'].strip()
-    except Exception as e:
-        return f"❌ Error: {str(e)}"
-
-# ========== User Tracking ==========
-user_id = st.user.get("email", "anonymous_user")
-if "user_log" not in st.session_state:
-    st.session_state.user_log = set()
-if user_id not in st.session_state.user_log:
-    st.session_state.user_log.add(user_id)
-    st.info(f"👋 New user session started: `{user_id}`")
+retriever = build_vector_db_from_all_pdfs(PDF_FOLDER)
+st.success("✅ All PDFs indexed. You can now ask questions.")
 
 # ========== Chat Interface ==========
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-query = st.chat_input("💬 Ask me anything about BITS...")
+query = st.chat_input("💬 Ask a question from the PDFs")
 
 if query:
     with st.spinner("🤖 Thinking..."):
-        answer = get_answer(query)
-        st.session_state.chat.append({"question": query, "answer": answer})
+        try:
+            docs = retriever.get_relevant_documents(query)
+            context = "\n\n".join([doc.page_content for doc in docs])
+            answer = ask_deepseek(context, query)
+        except Exception as e:
+            answer = f"❌ Error: {str(e)}"
+        st.session_state.chat.append({"question": query, "answer": answer, "sources": docs})
 
 # ========== Chat History ==========
-for entry in reversed(st.session_state.chat):
+for chat in reversed(st.session_state.chat):
     with st.chat_message("user"):
-        st.markdown(entry["question"])
+        st.markdown(chat["question"])
     with st.chat_message("assistant"):
-        st.markdown(entry["answer"])
+        st.markdown(chat["answer"])
+        for doc in chat["sources"]:
+            st.caption(f"📄 Source: `{doc.metadata['source']}`")
 
 # ========== Footer ==========
 st.markdown("""
-    <hr style="margin-top: 40px; margin-bottom: 10px;">
-    <div style='text-align: center; color: #aaa; font-size: 14px;'>
-         Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani ·
-    </div>
+<hr style="margin-top: 40px;">
+<div style='text-align: center; color: #888; font-size: 14px;'>
+    Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani · 
+    <br>📬 Email: <a href="mailto:prakhar.mathur2020@gmail.com">prakhar.mathur2020@gmail.com</a>
+</div>
 """, unsafe_allow_html=True)
