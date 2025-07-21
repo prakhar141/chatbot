@@ -12,7 +12,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
 MODEL_NAME = "deepseek/deepseek-chat:free"
 
 # ========== UI Setup ==========
-st.set_page_config(page_title="📄 BITSianGPT - Chat with PDFs", layout="wide")
+st.set_page_config(page_title="📄 Quiliffy", layout="wide")
 st.title("🎓 Welcome to BITSianGPT")
 st.markdown("Ask anything like Bhawan Guide, Events, Clubs")
 
