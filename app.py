@@ -36,7 +36,7 @@ def build_vector_db_from_folder(folder_path="."):
             with fitz.open(file_path) as doc:
                 text = "\n".join([page.get_text() for page in doc])
                 page_count = len(doc)
-            st.markdown(f"✅ Loaded **{filename}** — {file_size_kb} KB, {page_count} pages")
+            #st.markdown(f"✅ Loaded **{filename}** — {file_size_kb} KB, {page_count} pages")
 
             chunks = splitter.split_text(text)
             file_docs = [Document(page_content=chunk, metadata={"source": filename}) for chunk in chunks]
