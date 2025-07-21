@@ -17,7 +17,7 @@ st.title("📘 Chat with your PDFs")
 st.markdown("This app reads **all PDFs** from the `./pdfs/` folder. Ask anything!")
 
 # ========== PDF Folder Setup ==========
-PDF_FOLDER = "./pdfs"
+PDF_FOLDER = "."
 
 # ========== PDF Processing ==========
 @st.cache_resource(show_spinner="📚 Reading & indexing all PDFs...")
@@ -54,8 +54,9 @@ def ask_deepseek(context, query):
     return response.json()["choices"][0]["message"]["content"]
 
 # ========== Load Vector DB ==========
-if not os.path.exists(PDF_FOLDER):
-    st.error("❌ The folder `./pdfs/` does not exist. Please create it and add some PDFs.")
+pdf_files = [f for f in os.listdir(PDF_FOLDER) if f.endswith(".pdf")]
+if not pdf_files:
+    st.error("❌ No PDF files found in the current directory.")
     st.stop()
 
 retriever = build_vector_db_from_all_pdfs(PDF_FOLDER)
