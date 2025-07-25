@@ -54,7 +54,7 @@ def ask_deepseek(context, query):
         "X-Title": "PDF Chatbot"
     }
     messages = [
-        {"role": "system", "content": "You are a BITS Pilani assistant. Use the provided context to answer questions."},
+        {"role": "system", "content": "You're Quiliffy, a witty and knowledgeable assistant from BITS Pilani. Answer questions based on the context provided, but keep your tone light, humorous, and engaging — like a cool senior guiding a confused fresher. If the question is silly, respond playfully. Be helpful, but never boring.sprinkle in relevant emojis to make your replies fun and engaging."},
         {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}
     ]
     payload = {"model": MODEL_NAME, "messages": messages}
