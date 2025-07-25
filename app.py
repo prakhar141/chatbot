@@ -9,7 +9,7 @@ from langchain.docstore.document import Document
 
 # ========== API Setup ==========
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
-MODEL_NAME = "deepseek/deepseek-chat:free"
+MODEL_NAME = "deepseek/deepseek-chat-v3-0324:free"
 
 # ========== UI Setup ==========
 st.set_page_config(page_title="📄 Quiliffy", layout="wide")
@@ -54,7 +54,7 @@ def ask_deepseek(context, query):
         "X-Title": "PDF Chatbot"
     }
     messages = [
-        {"role": "system", "content": "You are a helpful assistant. Use the provided context to answer questions."},
+        {"role": "system", "content": "You are a BITS Pilani assistant. Use the provided context to answer questions."},
         {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}
     ]
     payload = {"model": MODEL_NAME, "messages": messages}
