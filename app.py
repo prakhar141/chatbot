@@ -20,7 +20,7 @@ st.markdown("Ask anything like Bhawan Guide, Events, Clubs")
 if st.button("🔁 Reset Chat"):
     for key in st.session_state.keys():
         del st.session_state[key]
-    st.experimental_rerun()
+    st.rerun()
 
 # ========== Load PDFs from Current Directory ==========
 @st.cache_resource(show_spinner="📚 Preparing... Please wait.")
