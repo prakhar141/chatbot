@@ -16,7 +16,7 @@ EMBED_MODEL = "BAAI/bge-base-en"
 K_VAL = 4  # Number of relevant chunks to retrieve
 
 st.set_page_config(page_title="📄 BITS Pilani", layout="wide")
-st.title("🎓 BITS Buddy")
+st.title("🎓 BITS Buddy(BETA version)")
 st.markdown("Ask me anything about Bhawans, Clubs, Events, Professors, or Campus Life!")
 
 # ========== Sidebar Upload Feature ========== #
