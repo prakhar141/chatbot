@@ -11,7 +11,7 @@ from langchain.docstore.document import Document
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
 MODEL_NAME = "deepseek/deepseek-chat-v3-0324:free"
 EMBED_MODEL = "BAAI/bge-base-en"
-K_VAL = 4  # Fixed value for chunks to search
+K_VAL = 4  # Number of relevant chunks to retrieve
 
 st.set_page_config(page_title="📄 Quiliffy", layout="wide")
 st.title("🎓 Quiliffy: Your BITS Pilani Assistant")
@@ -41,19 +41,32 @@ def load_pdfs(folder="."):
     vectordb = FAISS.from_documents(docs, embedder)
     return vectordb.as_retriever(search_type="similarity", k=K_VAL)
 
-# ========== Ask Function ========== #
-def ask_deepseek(context, query):
+# ========== Ask Function (with memory support) ========== #
+def ask_deepseek(context, query, history=[]):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "HTTP-Referer": "https://chat.openai.com",
         "X-Title": "PDF Chatbot"
     }
+
     messages = [
         {"role": "system", "content": 
-         "You're Quiliffy, a witty and helpful BITSian senior. Answer using the given context only. Use emojis. Keep it engaging and informal."},
-        {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}
+         "You're Quiliffy, a witty and helpful BITSian senior. Answer using the given context only. Use emojis. Keep it engaging and informal."}
     ]
+
+    # Append last 3 Q&A pairs for memory
+    for h in history[-3:]:
+        messages.append({"role": "user", "content": h["question"]})
+        messages.append({"role": "assistant", "content": h["answer"]})
+
+    # Add current query with context
+    messages.append({
+        "role": "user",
+        "content": f"Context:\n{context}\n\nQuestion: {query}"
+    })
+
     payload = {"model": MODEL_NAME, "messages": messages}
+
     try:
         res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
         res.raise_for_status()
@@ -80,7 +93,8 @@ if query:
         try:
             docs = retriever.get_relevant_documents(query)
             context = "\n\n".join([doc.page_content for doc in docs])
-            answer = ask_deepseek(context, query)
+            history = st.session_state.chat  # Use chat history for memory
+            answer = ask_deepseek(context, query, history=history)
             sources = list(set(doc.metadata['source'] for doc in docs))
         except Exception as e:
             answer = f"❌ Error: {e}"
@@ -114,6 +128,6 @@ st.markdown("""
 <hr style="margin-top: 40px;">
 <div style='text-align: center; color: #888; font-size: 14px;'>
     Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani · 
-    <br>📬 Email: <a href="mailto:f202240347@pilani.bits-pilani.com">Contact Prakhar</a>
+    <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.com">Contact Prakhar</a>
 </div>
-""", unsafe_allow_html=True)  
+""", unsafe_allow_html=True)
