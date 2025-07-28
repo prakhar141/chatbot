@@ -22,7 +22,7 @@ with st.sidebar:
     st.header("⚙️ Controls")
     if st.button("🔁 Start New Chat"):
         st.session_state.clear()
-        st.experimental_rerun()
+        st.rerun()
 
 # ========== Vector DB Creation ========== #
 @st.cache_resource(show_spinner="🔍 Indexing PDFs...")
