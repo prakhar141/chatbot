@@ -11,6 +11,7 @@ from langchain.docstore.document import Document
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
 MODEL_NAME = "deepseek/deepseek-chat-v3-0324:free"
 EMBED_MODEL = "BAAI/bge-base-en"
+K_VAL = 4  # Fixed value for chunks to search
 
 st.set_page_config(page_title="📄 Quiliffy", layout="wide")
 st.title("🎓 Quiliffy: Your BITS Pilani Assistant")
@@ -38,7 +39,7 @@ def load_pdfs(folder="."):
                 docs.extend([Document(page_content=c, metadata={"source": file}) for c in chunks])
     embedder = HuggingFaceEmbeddings(model_name=EMBED_MODEL)
     vectordb = FAISS.from_documents(docs, embedder)
-    return vectordb.as_retriever(search_type="similarity")  # Removed k=K_VAL to use default
+    return vectordb.as_retriever(search_type="similarity", k=K_VAL)
 
 # ========== Ask Function ========== #
 def ask_deepseek(context, query):
@@ -48,7 +49,7 @@ def ask_deepseek(context, query):
         "X-Title": "PDF Chatbot"
     }
     messages = [
-        {"role": "system", "content":
+        {"role": "system", "content": 
          "You're Quiliffy, a witty and helpful BITSian senior. Answer using the given context only. Use emojis. Keep it engaging and informal."},
         {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}
     ]
@@ -71,11 +72,6 @@ retriever = load_pdfs()
 # ========== Chat State Init ========== #
 if "chat" not in st.session_state:
     st.session_state.chat = []
-
-# ========== Auth Layer Placeholder (Gmail login) ========== #
-# Future Implementation: Firebase Auth / OAuth2
-# This can store user_id = st.session_state["user_email"]
-# and maintain history in cloud like Firebase Firestore or Supabase
 
 # ========== Input Box ========== #
 query = st.chat_input("💬 Ask something about BITS Pilani...")
@@ -118,6 +114,6 @@ st.markdown("""
 <hr style="margin-top: 40px;">
 <div style='text-align: center; color: #888; font-size: 14px;'>
     Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani · 
-    <br>📬 <a href="mailto:prakhar.mathur2020@gmail.com">prakhar.mathur2020@gmail.com</a>
+    <br>📬 <a href="mailto:f20240347.pilani.bits-pilani.com</a>
 </div>
-""", unsafe_allow_html=True)
+""", unsafe_allow_html=True)  
