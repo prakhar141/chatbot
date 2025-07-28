@@ -11,6 +11,7 @@ from langchain.docstore.document import Document
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
 MODEL_NAME = "deepseek/deepseek-chat-v3-0324:free"
 EMBED_MODEL = "BAAI/bge-base-en"
+K_VAL = 4  # Fixed value for chunks to search
 
 st.set_page_config(page_title="📄 Quiliffy", layout="wide")
 st.title("🎓 Quiliffy: Your BITS Pilani Assistant")
@@ -22,7 +23,6 @@ with st.sidebar:
     if st.button("🔁 Start New Chat"):
         st.session_state.clear()
         st.experimental_rerun()
-    k_val = st.slider("📚 How many chunks to search?", 2, 10, 4)
 
 # ========== Vector DB Creation ========== #
 @st.cache_resource(show_spinner="🔍 Indexing PDFs...")
@@ -33,14 +33,13 @@ def load_pdfs(folder="."):
     for file in os.listdir(folder):
         if file.endswith(".pdf"):
             path = os.path.join(folder, file)
-            size_kb = os.path.getsize(path) / 1024
             with fitz.open(path) as doc:
                 text = "\n".join(page.get_text() for page in doc)
                 chunks = splitter.split_text(text)
                 docs.extend([Document(page_content=c, metadata={"source": file}) for c in chunks])
     embedder = HuggingFaceEmbeddings(model_name=EMBED_MODEL)
     vectordb = FAISS.from_documents(docs, embedder)
-    return vectordb.as_retriever(search_type="similarity", k=k_val)
+    return vectordb.as_retriever(search_type="similarity", k=K_VAL)
 
 # ========== Ask Function ========== #
 def ask_deepseek(context, query):
@@ -90,26 +89,25 @@ if query:
         st.session_state.chat.append({
             "question": query,
             "answer": answer,
-            "sources": sources,
-            "chunks": [doc.page_content[:150] + "..." for doc in docs]
+            "sources": sources
         })
 
 # ========== Chat Display ========== #
+with st.sidebar:
+    st.subheader("📜 Chat History")
+    for i, chat in enumerate(reversed(st.session_state.chat)):
+        st.markdown(f"**Q{i+1}:** {chat['question']}")
+        st.markdown(f"**A{i+1}:** {chat['answer']}")
+        st.markdown("---")
+
 for chat in reversed(st.session_state.chat):
     with st.chat_message("user"):
         st.markdown(chat["question"])
     with st.chat_message("assistant"):
         st.markdown(chat["answer"])
-        with st.expander("📄 Sources & Chunks"):
-            for src, chunk in zip(chat["sources"], chat["chunks"]):
-                st.markdown(f"**`{src}`** — _\"{chunk}\"_")
-
-# ========== History ========== #
-with st.expander("📜 Full Chat History"):
-    for i, chat in enumerate(st.session_state.chat):
-        st.markdown(f"**Q{i+1}:** {chat['question']}")
-        st.markdown(f"**A{i+1}:** {chat['answer']}")
-        st.markdown("---")
+        with st.expander("📄 Sources"):
+            for src in chat["sources"]:
+                st.markdown(f"**`{src}`**")
 
 # ========== Footer ========== #
 st.markdown("""
