@@ -115,6 +115,5 @@ st.markdown("""
 <div style='text-align: center; color: #888; font-size: 14px;'>
     Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani · 
     <br>📬 <a href="mailto:f20240347@pilani.bits-pilani.com">Email Me</a>
-
 </div>
 """, unsafe_allow_html=True)  
