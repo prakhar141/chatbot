@@ -2,6 +2,8 @@ import os
 import fitz  # PyMuPDF
 import streamlit as st
 import requests
+from PIL import Image
+import pytesseract
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -17,12 +19,72 @@ st.set_page_config(page_title="📄 Quiliffy", layout="wide")
 st.title("🎓 Quiliffy: Your BITS Pilani Assistant")
 st.markdown("Ask me anything about Bhawans, Clubs, Events, Professors, or Campus Life!")
 
-# ========== Session Reset ========== #
+# ========== Sidebar Upload Feature ========== #
 with st.sidebar:
     st.header("⚙️ Controls")
     if st.button("🔁 Start New Chat"):
         st.session_state.clear()
         st.rerun()
+
+    st.subheader("📤 Upload PDF or Image")
+    uploaded_file = st.file_uploader("Upload a PDF or image", type=["pdf", "png", "jpg", "jpeg"])
+
+# ========== File Processing ========== #
+uploaded_content = ""
+uploaded_filename = ""
+
+if uploaded_file:
+    file_type = uploaded_file.type
+    uploaded_filename = uploaded_file.name
+
+    if file_type == "application/pdf":
+        with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
+            uploaded_content = "\n".join(page.get_text() for page in doc)
+
+    elif "image" in file_type:
+        image = Image.open(uploaded_file)
+        uploaded_content = pytesseract.image_to_string(image)
+
+    if uploaded_content.strip():
+        st.success("✅ Extracted content from uploaded file.")
+        st.text_area("📄 File Content Preview", uploaded_content[:1000], height=200)
+
+        # Ask model: is it related to BITS?
+        check_bits_query = "Is the following content related to BITS Pilani, its campus, events, or culture?"
+        confirm = st.button("🤔 Check if this file is about BITS Pilani")
+
+        if confirm:
+            result = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "HTTP-Referer": "https://chat.openai.com",
+                    "X-Title": "Check BITS relevance"
+                },
+                json={
+                    "model": MODEL_NAME,
+                    "messages": [
+                        {"role": "system", "content": "You're a BITS Pilani expert. Just say Yes or No."},
+                        {"role": "user", "content": f"Content:\n{uploaded_content}\n\nIs this about BITS Pilani?"}
+                    ]
+                }
+            )
+
+            verdict = result.json()["choices"][0]["message"]["content"].strip().lower()
+
+            if "yes" in verdict:
+                st.success("🎉 This file is about BITS Pilani!")
+
+                # Save the PDF for future retrieval
+                if file_type == "application/pdf":
+                    save_path = os.path.join(".", uploaded_filename)
+                    with open(save_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    st.info("📁 File saved and will be used in future context retrieval.")
+            else:
+                st.warning("🚫 This file doesn’t seem to be about BITS Pilani.")
+    else:
+        st.warning("⚠️ No readable text found in the file.")
 
 # ========== Vector DB Creation ========== #
 @st.cache_resource(show_spinner="🔍 Indexing PDFs...")
@@ -54,12 +116,10 @@ def ask_deepseek(context, query, history=[]):
          "You're Quiliffy, a witty and helpful BITSian senior. Answer using the given context only. Use emojis. Keep it engaging and informal."}
     ]
 
-    # Append last 3 Q&A pairs for memory
     for h in history[-3:]:
         messages.append({"role": "user", "content": h["question"]})
         messages.append({"role": "assistant", "content": h["answer"]})
 
-    # Add current query with context
     messages.append({
         "role": "user",
         "content": f"Context:\n{context}\n\nQuestion: {query}"
@@ -93,7 +153,7 @@ if query:
         try:
             docs = retriever.get_relevant_documents(query)
             context = "\n\n".join([doc.page_content for doc in docs])
-            history = st.session_state.chat  # Use chat history for memory
+            history = st.session_state.chat
             answer = ask_deepseek(context, query, history=history)
             sources = list(set(doc.metadata['source'] for doc in docs))
         except Exception as e:
