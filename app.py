@@ -15,8 +15,8 @@ MODEL_NAME = "deepseek/deepseek-chat-v3-0324:free"
 EMBED_MODEL = "BAAI/bge-base-en"
 K_VAL = 4  # Number of relevant chunks to retrieve
 
-st.set_page_config(page_title="📄 Quiliffy", layout="wide")
-st.title("🎓 Quiliffy: Your BITS Pilani Assistant")
+st.set_page_config(page_title="📄 BITS Pilani", layout="wide")
+st.title("🎓 BITS Buddies")
 st.markdown("Ask me anything about Bhawans, Clubs, Events, Professors, or Campus Life!")
 
 # ========== Sidebar Upload Feature ========== #
