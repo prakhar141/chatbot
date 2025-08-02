@@ -12,7 +12,7 @@ from langchain.docstore.document import Document
 # ========== CONFIG ========== #
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
 MODEL_NAME = "deepseek/deepseek-chat-v3-0324:free"
-EMBED_MODEL = "BAAI/bge-base-en"
+EMBED_MODEL = "mixedbread-ai/mxbai-embed-large-v1"
 K_VAL = 4  # Number of relevant chunks to retrieve
 
 st.set_page_config(page_title="📄 BITS Pilani", layout="wide")
