@@ -8,15 +8,16 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
+import time
 
 # ========== CONFIG ========== #
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
 MODEL_NAME = "deepseek/deepseek-chat-v3-0324:free"
 EMBED_MODEL = "mixedbread-ai/mxbai-embed-large-v1"
-K_VAL = 4  # Number of relevant chunks to retrieve
+K_VAL = 4
 
-st.set_page_config(page_title="📄 BITS Pilani", layout="wide")
-st.title("🎓 BITS Buddy")
+st.set_page_config(page_title="\U0001F4C4 BITS Pilani", layout="wide")
+st.title("\U0001F393 BITS Buddy")
 st.markdown("Ask me anything about Bhawans, Clubs, Events, Professors, or Campus Life!")
 
 # ========== Sidebar Upload Feature ========== #
@@ -26,7 +27,7 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
-    st.subheader("📤 Upload PDF or Image")
+    st.subheader("\U0001F4C4 Upload PDF or Image")
     uploaded_file = st.file_uploader("Upload a PDF or image", type=["pdf", "png", "jpg", "jpeg"])
 
 # ========== File Processing ========== #
@@ -40,18 +41,16 @@ if uploaded_file:
     if file_type == "application/pdf":
         with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
             uploaded_content = "\n".join(page.get_text() for page in doc)
-
     elif "image" in file_type:
         image = Image.open(uploaded_file)
         uploaded_content = pytesseract.image_to_string(image)
 
     if uploaded_content.strip():
         st.success("✅ Extracted content from uploaded file.")
-        st.text_area("📄 File Content Preview", uploaded_content[:1000], height=200)
+        st.text_area("\U0001F4C4 File Content Preview", uploaded_content[:1000], height=200)
 
-        # Ask model: is it related to BITS?
         check_bits_query = "Is the following content related to BITS Pilani, its campus, events, or culture?"
-        confirm = st.button("🤔 Check if this file is about BITS Pilani")
+        confirm = st.button("\U0001F914 Check if this file is about BITS Pilani")
 
         if confirm:
             result = requests.post(
@@ -73,25 +72,22 @@ if uploaded_file:
             verdict = result.json()["choices"][0]["message"]["content"].strip().lower()
 
             if "yes" in verdict:
-                st.success("🎉 This file is about BITS Pilani!")
-
-                # Save the PDF for future retrieval
+                st.success("\U0001F389 This file is about BITS Pilani!")
                 if file_type == "application/pdf":
                     save_path = os.path.join(".", uploaded_filename)
                     with open(save_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
-                    st.info("📁 File saved and will be used in future context retrieval.")
+                    st.info("\U0001F4C1 File saved and will be used in future context retrieval.")
             else:
-                st.warning("🚫 This file doesn’t seem to be about BITS Pilani.")
+                st.warning("\u274C This file doesn’t seem to be about BITS Pilani.")
     else:
         st.warning("⚠️ No readable text found in the file.")
 
 # ========== Vector DB Creation ========== #
-@st.cache_resource(show_spinner="🔍 Indexing PDFs...")
+@st.cache_resource(show_spinner="\U0001F50D Indexing PDFs...")
 def load_pdfs(folder="."):
     docs = []
     splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=50)
-
     for file in os.listdir(folder):
         if file.endswith(".pdf"):
             path = os.path.join(folder, file)
@@ -103,28 +99,20 @@ def load_pdfs(folder="."):
     vectordb = FAISS.from_documents(docs, embedder)
     return vectordb.as_retriever(search_type="similarity", k=K_VAL)
 
-# ========== Ask Function (with memory support) ========== #
+# ========== Ask Function ========== #
 def ask_deepseek(context, query, history=[]):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "HTTP-Referer": "https://chat.openai.com",
         "X-Title": "PDF Chatbot"
     }
-
     messages = [
-        {"role": "system", "content": 
-         "You're BitsBuddy, a witty and helpful BITSian senior. Answer using the given context only. Use emojis. Keep it engaging and informal.but strict when needed.If someone broke a rule or violated college policy, respond clearly that rules are important and explain them politely. Don't encourage excuses. Avoid giving second chances unless the document clearly allows it. Be empathetic, but firm. If rules allow reconsideration, mention the process to request it."}
+        {"role": "system", "content": "You're BitsBuddy, a witty and helpful BITSian senior. Answer using the given context only. Use emojis. Keep it engaging and informal.but strict when needed.If someone broke a rule or violated college policy, respond clearly that rules are important and explain them politely. Don't encourage excuses. Avoid giving second chances unless the document clearly allows it. Be empathetic, but firm. If rules allow reconsideration, mention the process to request it."}
     ]
-
     for h in history[-3:]:
         messages.append({"role": "user", "content": h["question"]})
         messages.append({"role": "assistant", "content": h["answer"]})
-
-    messages.append({
-        "role": "user",
-        "content": f"Context:\n{context}\n\nQuestion: {query}"
-    })
-
+    messages.append({"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"})
     payload = {"model": MODEL_NAME, "messages": messages}
 
     try:
@@ -134,7 +122,7 @@ def ask_deepseek(context, query, history=[]):
     except Exception as e:
         return f"❌ API Error: {e}"
 
-# ========== PDF Check ========== #
+# ========== Chat Setup ========== #
 pdf_files = [f for f in os.listdir(".") if f.endswith(".pdf")]
 if not pdf_files:
     st.error("⚠️ No PDF files found. Please upload them to the current directory.")
@@ -142,14 +130,12 @@ if not pdf_files:
 
 retriever = load_pdfs()
 
-# ========== Chat State Init ========== #
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# ========== Input Box ========== #
-query = st.chat_input("💬 Ask something about BITS Pilani...")
+query = st.chat_input("\U0001F4AC Ask something about BITS Pilani...")
 if query:
-    with st.spinner("🤖 Thinking..."):
+    with st.spinner("\U0001F916 Thinking..."):
         try:
             docs = retriever.get_relevant_documents(query)
             context = "\n\n".join([doc.page_content for doc in docs])
@@ -166,22 +152,30 @@ if query:
             "sources": sources
         })
 
-# ========== Chat Display ========== #
-with st.sidebar:
-    st.subheader("📜 Chat History")
-    for i, chat in enumerate(reversed(st.session_state.chat)):
-        st.markdown(f"**Q{i+1}:** {chat['question']}")
-        st.markdown(f"**A{i+1}:** {chat['answer']}")
-        st.markdown("---")
-
+# ========== Animated Chat Display ========== #
 for chat in reversed(st.session_state.chat):
     with st.chat_message("user"):
         st.markdown(chat["question"])
     with st.chat_message("assistant"):
-        st.markdown(chat["answer"])
-        with st.expander("📄 Sources"):
+        response_placeholder = st.empty()
+        full_response = ""
+        for chunk in chat["answer"]:
+            full_response += chunk
+            response_placeholder.markdown(full_response + "|")
+            time.sleep(0.01)
+        response_placeholder.markdown(full_response)
+
+        with st.expander("\U0001F4C4 Sources"):
             for src in chat["sources"]:
                 st.markdown(f"**`{src}`**")
+
+# ========== Chat History ========== #
+with st.sidebar:
+    st.subheader("\U0001F4DC Chat History")
+    for i, chat in enumerate(reversed(st.session_state.chat)):
+        st.markdown(f"**Q{i+1}:** {chat['question']}")
+        st.markdown(f"**A{i+1}:** {chat['answer']}")
+        st.markdown("---")
 
 # ========== Footer ========== #
 st.markdown("""
