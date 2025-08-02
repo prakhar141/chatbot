@@ -16,19 +16,22 @@ MODEL_NAME = "deepseek/deepseek-chat-v3-0324:free"
 EMBED_MODEL = "mixedbread-ai/mxbai-embed-large-v1"
 K_VAL = 4
 
-st.set_page_config(page_title="\U0001F4C4 BITS Pilani", layout="wide")
-st.title("\U0001F393 BITS Buddy")
+st.set_page_config(page_title="📄 BITS Pilani", layout="wide")
+st.title("🎓 BITS Buddy")
 st.markdown("Ask me anything about Bhawans, Clubs, Events, Professors, or Campus Life!")
 
-# ========== Sidebar Upload Feature ========== #
+# ========== Sidebar Upload & Settings ========== #
 with st.sidebar:
     st.header("⚙️ Controls")
     if st.button("🔁 Start New Chat"):
         st.session_state.clear()
         st.rerun()
 
-    st.subheader("\U0001F4C4 Upload PDF or Image")
+    st.subheader("📄 Upload PDF or Image")
     uploaded_file = st.file_uploader("Upload a PDF or image", type=["pdf", "png", "jpg", "jpeg"])
+
+    st.subheader("🌐 Choose Response Language")
+    language = st.selectbox("Select language for response", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
 
 # ========== File Processing ========== #
 uploaded_content = ""
@@ -47,10 +50,9 @@ if uploaded_file:
 
     if uploaded_content.strip():
         st.success("✅ Extracted content from uploaded file.")
-        st.text_area("\U0001F4C4 File Content Preview", uploaded_content[:1000], height=200)
+        st.text_area("📄 File Content Preview", uploaded_content[:1000], height=200)
 
-        check_bits_query = "Is the following content related to BITS Pilani, its campus, events, or culture?"
-        confirm = st.button("\U0001F914 Check if this file is about BITS Pilani")
+        confirm = st.button("🤔 Check if this file is about BITS Pilani")
 
         if confirm:
             result = requests.post(
@@ -68,23 +70,22 @@ if uploaded_file:
                     ]
                 }
             )
-
             verdict = result.json()["choices"][0]["message"]["content"].strip().lower()
 
             if "yes" in verdict:
-                st.success("\U0001F389 This file is about BITS Pilani!")
+                st.success("🎉 This file is about BITS Pilani!")
                 if file_type == "application/pdf":
                     save_path = os.path.join(".", uploaded_filename)
                     with open(save_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
-                    st.info("\U0001F4C1 File saved and will be used in future context retrieval.")
+                    st.info("📁 File saved and will be used in future context retrieval.")
             else:
-                st.warning("\u274C This file doesn’t seem to be about BITS Pilani.")
+                st.warning("❌ This file doesn’t seem to be about BITS Pilani.")
     else:
         st.warning("⚠️ No readable text found in the file.")
 
-# ========== Vector DB Creation ========== #
-@st.cache_resource(show_spinner="\U0001F50D Indexing PDFs...")
+# ========== Vector DB ========== #
+@st.cache_resource(show_spinner="🔍 Indexing PDFs...")
 def load_pdfs(folder="."):
     docs = []
     splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=50)
@@ -100,14 +101,14 @@ def load_pdfs(folder="."):
     return vectordb.as_retriever(search_type="similarity", k=K_VAL)
 
 # ========== Ask Function ========== #
-def ask_deepseek(context, query, history=[]):
+def ask_deepseek(context, query, lang="English", history=[]):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "HTTP-Referer": "https://chat.openai.com",
         "X-Title": "PDF Chatbot"
     }
     messages = [
-        {"role": "system", "content": "You're BitsBuddy, a witty and helpful BITSian senior. Answer using the given context only. Use emojis. Keep it engaging and informal.but strict when needed.If someone broke a rule or violated college policy, respond clearly that rules are important and explain them politely. Don't encourage excuses. Avoid giving second chances unless the document clearly allows it. Be empathetic, but firm. If rules allow reconsideration, mention the process to request it."}
+        {"role": "system", "content": f"You're BitsBuddy, a witty and helpful BITSian senior. Answer in {lang}. Use only the given context. Be friendly, emoji-rich, and informal. Be strict but kind if rules are broken. Don't allow excuses unless the document permits."}
     ]
     for h in history[-3:]:
         messages.append({"role": "user", "content": h["question"]})
@@ -133,14 +134,14 @@ retriever = load_pdfs()
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-query = st.chat_input("\U0001F4AC Ask something about BITS Pilani...")
+query = st.chat_input("💬 Ask something about BITS Pilani...")
 if query:
-    with st.spinner("\U0001F916 Thinking..."):
+    with st.spinner("🤖 Thinking..."):
         try:
             docs = retriever.get_relevant_documents(query)
             context = "\n\n".join([doc.page_content for doc in docs])
             history = st.session_state.chat
-            answer = ask_deepseek(context, query, history=history)
+            answer = ask_deepseek(context, query, lang=language, history=history)
             sources = list(set(doc.metadata['source'] for doc in docs))
         except Exception as e:
             answer = f"❌ Error: {e}"
@@ -152,8 +153,8 @@ if query:
             "sources": sources
         })
 
-# ========== Animated Chat Display ========== #
-for chat in reversed(st.session_state.chat):
+# ========== Animated Display + Regenerate ========== #
+for idx, chat in enumerate(reversed(st.session_state.chat)):
     with st.chat_message("user"):
         st.markdown(chat["question"])
     with st.chat_message("assistant"):
@@ -165,13 +166,20 @@ for chat in reversed(st.session_state.chat):
             time.sleep(0.01)
         response_placeholder.markdown(full_response)
 
-        with st.expander("\U0001F4C4 Sources"):
+        with st.expander("📄 Sources"):
             for src in chat["sources"]:
                 st.markdown(f"**`{src}`**")
 
-# ========== Chat History ========== #
+        if st.button(f"🔄 Regenerate Answer {idx+1}"):
+            docs = retriever.get_relevant_documents(chat["question"])
+            context = "\n\n".join([doc.page_content for doc in docs])
+            new_answer = ask_deepseek(context, chat["question"], lang=language)
+            chat["answer"] = new_answer
+            st.rerun()
+
+# ========== Sidebar History ========== #
 with st.sidebar:
-    st.subheader("\U0001F4DC Chat History")
+    st.subheader("📚 Chat History")
     for i, chat in enumerate(reversed(st.session_state.chat)):
         st.markdown(f"**Q{i+1}:** {chat['question']}")
         st.markdown(f"**A{i+1}:** {chat['answer']}")
