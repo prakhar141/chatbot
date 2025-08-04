@@ -1,4 +1,3 @@
-# main.py
 import os, time, fitz, requests
 from PIL import Image
 import streamlit as st
@@ -14,9 +13,9 @@ MODEL_NAME = "deepseek/deepseek-chat-v3-0324:free"
 EMBED_MODEL = "mixedbread-ai/mxbai-embed-large-v1"
 K_VAL = 4
 
-st.set_page_config(page_title="📄 BITS Pilani", layout="wide")
-st.title("🎓 BITS Buddy")
-st.markdown("Ask me anything about Bhawans, Clubs, Events, Professors, or Campus Life!")
+st.set_page_config(page_title="🤖 BITS ReAct Buddy", layout="wide")
+st.title("🎓 BITS ReAct Buddy")
+st.markdown("An agent that thinks like a senior — ask me anything about BITS Pilani!")
 
 # ========== SIDEBAR ==========
 with st.sidebar:
@@ -25,7 +24,7 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
-    uploaded_file = st.file_uploader("📄 Upload a PDF or image", type=["pdf", "png", "jpg", "jpeg"])
+    uploaded_file = st.file_uploader("📄 Upload PDF or image", type=["pdf", "png", "jpg", "jpeg"])
     language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
 
 # ========== FILE PROCESSING ==========
@@ -43,33 +42,11 @@ if uploaded_file:
     if uploaded_content.strip():
         st.success("✅ Extracted content from file.")
         st.text_area("📄 Preview", uploaded_content[:1000], height=200)
-        if st.button("🤔 Is this about BITS Pilani?"):
-            check = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                    "HTTP-Referer": "https://chat.openai.com",
-                    "X-Title": "Check BITS relevance"
-                },
-                json={
-                    "model": MODEL_NAME,
-                    "messages": [
-                        {"role": "system", "content": "You're a BITS Pilani expert. Just say Yes or No."},
-                        {"role": "user", "content": f"Content:\n{uploaded_content}\n\nIs this about BITS Pilani?"}
-                    ]
-                }
-            )
-            if "yes" in check.json()["choices"][0]["message"]["content"].lower():
-                st.success("🎉 This file is about BITS Pilani!")
-                with open(uploaded_filename, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
-            else:
-                st.warning("❌ This doesn't seem related to BITS Pilani.")
     else:
         st.warning("⚠️ Couldn't extract readable text.")
 
 # ========== VECTOR DB ==========
-@st.cache_resource(show_spinner="🔍 Indexing PDFs...")
+@st.cache_resource(show_spinner="🔍 Indexing documents...")
 def load_vector_db(folder="."):
     docs = []
     splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=50)
@@ -85,27 +62,85 @@ def load_vector_db(folder="."):
 
 retriever = load_vector_db()
 
-# ========== CHAT FUNCTIONS ==========
-def ask_deepseek(context, question, lang="English", history=[]):
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://chat.openai.com",
-        "X-Title": "PDF Chatbot"
-    }
-    messages = [
-        {"role": "system", "content": f"You're BitsBuddy, a witty, emoji-loving BITSian senior. Answer in {lang}. Be informal and helpful. Use ONLY the context provided."}
-    ]
+# ========== REACT + RAG ==========
+def react_rag_agent(question, lang="English", history=[]):
+    system_prompt = (
+        f"You're BitsBuddy, a smart and funny BITSian senior who uses ReAct (Reasoning + Action). "
+        f"Answer in {lang}. Be informal, emoji-loving, and context-aware. "
+        f"You can THINK, then SEARCH (retrieve), then OBSERVE, and finally ANSWER."
+    )
+
+    messages = [{"role": "system", "content": system_prompt}]
     for h in history[-3:]:
         messages.append({"role": "user", "content": h["question"]})
         messages.append({"role": "assistant", "content": h["answer"]})
-    messages.append({"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"})
+    messages.append({
+        "role": "user",
+        "content": (
+            f"Question: {question}\n"
+            "Use the format:\n"
+            "Thought: ...\n"
+            "Action: Search[query]\n"
+            "Observation: ...\n"
+            "Thought: ...\n"
+            "Final Answer: ..."
+        )
+    })
 
     try:
-        res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json={"model": MODEL_NAME, "messages": messages})
+        # Initial ReAct step
+        res = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "HTTP-Referer": "https://chat.openai.com",
+                "X-Title": "ReAct RAG Agent"
+            },
+            json={"model": MODEL_NAME, "messages": messages}
+        )
         res.raise_for_status()
-        return res.json()["choices"][0]["message"]["content"]
+        model_response = res.json()["choices"][0]["message"]["content"]
+
+        # Extract search queries and rerun with document context
+        if "Search[" in model_response:
+            search_queries = []
+            lines = model_response.splitlines()
+            for line in lines:
+                if line.strip().startswith("Action: Search["):
+                    q = line.strip().split("Search[")[1].rstrip("]").strip("]")
+                    search_queries.append(q)
+
+            context = ""
+            for sq in search_queries:
+                docs = retriever.get_relevant_documents(sq)
+                context += "\n\n".join([doc.page_content for doc in docs])
+
+            # Final answer based on reasoning + retrieved context
+            messages.append({
+                "role": "assistant",
+                "content": model_response
+            })
+            messages.append({
+                "role": "user",
+                "content": f"Use this retrieved context to write the final answer:\n{context}"
+            })
+
+            final = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "HTTP-Referer": "https://chat.openai.com",
+                    "X-Title": "Final Answer Generator"
+                },
+                json={"model": MODEL_NAME, "messages": messages}
+            )
+            final.raise_for_status()
+            return final.json()["choices"][0]["message"]["content"]
+        else:
+            return model_response
+
     except Exception as e:
-        return f"❌ API Error: {e}"
+        return f"❌ Error: {e}"
 
 # ========== CHAT SESSION ==========
 if "chat" not in st.session_state:
@@ -113,16 +148,12 @@ if "chat" not in st.session_state:
 
 query = st.chat_input("💬 Ask anything about BITS Pilani...")
 if query:
-    with st.spinner("🤖 Thinking..."):
-        docs = retriever.get_relevant_documents(query)
-        context = "\n\n".join([doc.page_content for doc in docs])
-        answer = ask_deepseek(context, query, lang=language, history=st.session_state.chat)
-        sources = list(set(doc.metadata["source"] for doc in docs))
+    with st.spinner("🧠 Thinking like a senior..."):
+        answer = react_rag_agent(query, lang=language, history=st.session_state.chat)
         st.session_state.chat.append({
             "question": query,
             "answer": answer,
-            "sources": sources,
-            "language": language  # Save language per message
+            "language": language
         })
 
 # ========== CHAT DISPLAY ==========
@@ -139,9 +170,7 @@ for idx, chat in enumerate(reversed(st.session_state.chat)):
             time.sleep(0.005)
         response_placeholder.markdown(animated)
 
-        
-        
-# ========== SIDEBAR HISTORY ==========
+# ========== CHAT HISTORY ==========
 with st.sidebar:
     st.subheader("🗂️ Chat History")
     for i, chat in enumerate(reversed(st.session_state.chat)):
@@ -153,7 +182,7 @@ with st.sidebar:
 st.markdown("""
 <hr style="margin-top: 40px;">
 <div style='text-align: center; color: #888; font-size: 14px;'>
-    Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani · 
+    Built with 🧠 by <b>Prakhar Mathur</b> · BITS Pilani · 
     <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact Prakhar</a>
 </div>
 """, unsafe_allow_html=True)
