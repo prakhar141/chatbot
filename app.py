@@ -14,7 +14,7 @@ EMBED_MODEL = "mixedbread-ai/mxbai-embed-large-v1"
 K_VAL = 4
 
 st.set_page_config(page_title="🤖 BITS Buddy", layout="wide")
-st.title("🎓 BITS ReAct Buddy")
+st.title("🎓 BITS Buddy")
 st.markdown("ask me anything about BITS Pilani!")
 
 # ========== SIDEBAR ==========
