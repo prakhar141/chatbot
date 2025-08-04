@@ -13,9 +13,9 @@ MODEL_NAME = "deepseek/deepseek-chat-v3-0324:free"
 EMBED_MODEL = "mixedbread-ai/mxbai-embed-large-v1"
 K_VAL = 4
 
-st.set_page_config(page_title="🤖 BITS ReAct Buddy", layout="wide")
+st.set_page_config(page_title="🤖 BITS Buddy", layout="wide")
 st.title("🎓 BITS ReAct Buddy")
-st.markdown("An agent that thinks like a senior — ask me anything about BITS Pilani!")
+st.markdown("ask me anything about BITS Pilani!")
 
 # ========== SIDEBAR ==========
 with st.sidebar:
