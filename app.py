@@ -13,9 +13,9 @@ MODEL_NAME = "deepseek/deepseek-chat-v3-0324:free"
 EMBED_MODEL = "mixedbread-ai/mxbai-embed-large-v1"
 K_VAL = 4
 
-st.set_page_config(page_title="🤖 BITS Buddy", layout="wide")
-st.title("🎓 BITS Buddy")
-st.markdown("Ask me anything about BITS Pilani!")
+st.set_page_config(page_title="🤖 BITS Buddy+", layout="wide")
+st.title("🎓 BITS Buddy+ (Smarter Edition)")
+st.markdown("Ask me anything about BITS Pilani, with self-evaluated, fact-checked answers!")
 
 # ========== SIDEBAR ==========
 with st.sidebar:
@@ -60,20 +60,7 @@ def load_vector_db(folder="."):
 
 retriever = load_vector_db()
 
-# ========== MODULAR REASONING ENGINE ==========
-def scratchpad_reasoning(context, question):
-    return f"Let's think step-by-step.\n\nContext:\n{context}\n\nQuestion:\n{question}"
-
-def build_react_prompt(context, question, lang):
-    return [
-        {"role": "system", "content": (
-            f"You are BitsBuddy, a funny and helpful BITSian senior. Answer in {lang}.\n"
-            "Use emojis, break things into steps (like a scratchpad), ask yourself questions, and explain clearly.\n"
-            "Use this context and your own reasoning to answer."
-        )},
-        {"role": "user", "content": scratchpad_reasoning(context, question)}
-    ]
-
+# ========== LLM Query Function ==========
 def query_llm(messages):
     response = requests.post(
         "https://openrouter.ai/api/v1/chat/completions",
@@ -87,30 +74,62 @@ def query_llm(messages):
     response.raise_for_status()
     return response.json()["choices"][0]["message"]["content"]
 
-def modular_rag_answer(question, lang="English"):
+# ========== Prompt Generators ==========
+def scratchpad_reasoning(context, question):
+    return f"Let's think step-by-step.\n\nContext:\n{context}\n\nQuestion:\n{question}"
+
+def build_primary_prompt(context, question, lang):
+    return [
+        {"role": "system", "content": f"You are BitsBuddy, a BITSian senior. Answer in {lang}. Use emojis, step-by-step reasoning, and be helpful."},
+        {"role": "user", "content": scratchpad_reasoning(context, question)}
+    ]
+
+def build_critic_prompt(context, question, answer):
+    return [
+        {"role": "system", "content": "You are an honest critic checking the assistant’s answer for factual errors, incompleteness, or hallucinations."},
+        {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}\n\nAnswer:\n{answer}\n\nCritique the above and suggest corrections if needed."}
+    ]
+
+def build_final_prompt(context, question, answer, critique, lang):
+    return [
+        {"role": "system", "content": f"You are BitsBuddy+ with self-evaluation enabled. Based on critique, revise your original answer. Respond in {lang} with clarity."},
+        {"role": "user", "content": f"Original Answer:\n{answer}\n\nCritique:\n{critique}\n\nNow improve the answer accordingly."}
+    ]
+
+# ========== SMART MODULAR RAG ANSWER ==========
+def modular_rag_smart_answer(question, lang="English"):
     try:
-        docs = retriever.get_relevant_documents(question)  # Retrieval-aware
+        docs = retriever.get_relevant_documents(question)
         context = "\n\n".join([doc.page_content for doc in docs])
-        messages = build_react_prompt(context, question, lang)  # ReAct + Scratchpad + Self-Ask
-        return query_llm(messages)
+
+        # Step 1: Primary Answer
+        primary = query_llm(build_primary_prompt(context, question, lang))
+
+        # Step 2: Critique (fact-check / flaw detection)
+        critique = query_llm(build_critic_prompt(context, question, primary))
+
+        # Step 3: Final Revised Answer
+        improved = query_llm(build_final_prompt(context, question, primary, critique, lang))
+
+        return improved
     except Exception as e:
         return f"❌ Error: {e}"
 
-# ========== CHAT SESSION ==========
+# ========== CHAT SESSION HANDLER ==========
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
 query = st.chat_input("💬 Ask anything about BITS Pilani...")
 if query:
-    with st.spinner("🧫 Thinking like a senior..."):
-        answer = modular_rag_answer(query, lang=language)
+    with st.spinner("🧠 Thinking, checking, and reflecting..."):
+        answer = modular_rag_smart_answer(query, lang=language)
         st.session_state.chat.append({
             "question": query,
             "answer": answer,
             "language": language
         })
 
-# ========== CHAT DISPLAY ==========
+# ========== DISPLAY CHAT ==========
 for chat in reversed(st.session_state.chat):
     with st.chat_message("user"):
         st.markdown(chat["question"])
@@ -123,7 +142,7 @@ for chat in reversed(st.session_state.chat):
             time.sleep(0.005)
         response_placeholder.markdown(animated)
 
-# ========== CHAT HISTORY ==========
+# ========== SIDEBAR HISTORY ==========
 with st.sidebar:
     st.subheader("📂 Chat History")
     for i, chat in enumerate(reversed(st.session_state.chat)):
@@ -135,7 +154,8 @@ with st.sidebar:
 st.markdown("""
 <hr style="margin-top: 40px;">
 <div style='text-align: center; color: #888; font-size: 14px;'>
-    Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani · 
+    Built with 🧠 by <b>Prakhar Mathur</b> · BITS Pilani · 
     <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact Prakhar</a>
 </div>
-""", unsafe_allow_html=True)  
+""", unsafe_allow_html=True)
+
