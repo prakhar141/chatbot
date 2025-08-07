@@ -34,7 +34,7 @@ if uploaded_file:
     if file_type == "application/pdf":
         with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
             uploaded_content = "\n".join(page.get_text() for page in doc)
-    elif "image" in file_type:
+   # elif "image" in file_type:
         #uploaded_content = pytesseract.image_to_string(Image.open(uploaded_file))
 
     if uploaded_content.strip():
