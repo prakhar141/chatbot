@@ -1,5 +1,3 @@
-# Rewriting your Streamlit app with Firebase Google Authentication integrated
-
 import os
 import time
 import fitz
@@ -212,7 +210,7 @@ with st.sidebar:
 st.markdown("""
 <hr style="margin-top: 40px;">
 <div style='text-align: center; color: #888; font-size: 14px;'>
-    Built with 🧠 by <b>Prakhar Mathur</b> · BITS Pilani · 
+    Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani · 
     <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact Prakhar</a>
 </div>
 """, unsafe_allow_html=True)
