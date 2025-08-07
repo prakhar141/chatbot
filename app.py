@@ -1,7 +1,7 @@
 import os, time, fitz, requests
 from PIL import Image
 import streamlit as st
-import tesseract
+import pytesseract
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -35,7 +35,7 @@ if uploaded_file:
         with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
             uploaded_content = "\n".join(page.get_text() for page in doc)
     elif "image" in file_type:
-        uploaded_content = tesseract.image_to_string(Image.open(uploaded_file))
+        uploaded_content = pytesseract.image_to_string(Image.open(uploaded_file))
 
     if uploaded_content.strip():
         st.success("✅ Extracted content from file.")
