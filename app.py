@@ -13,8 +13,8 @@ MODEL_NAME = "deepseek/deepseek-chat-v3-0324:free"
 EMBED_MODEL = "mixedbread-ai/mxbai-embed-large-v1"
 K_VAL = 4
 
-st.set_page_config(page_title="🤖 BITS Buddy+", layout="wide")
-st.title("🎓 BITS Buddy+ (Smarter Edition)")
+st.set_page_config(page_title="BITS Buddy", layout="wide")
+st.title("🎓 BITS Buddy")
 st.markdown("Ask me anything about BITS Pilani")
 
 # ========== SIDEBAR ==========
