@@ -15,7 +15,7 @@ K_VAL = 4
 
 st.set_page_config(page_title="🤖 BITS Buddy", layout="wide")
 st.title("🎓 BITS Buddy")
-st.markdown("ask me anything about BITS Pilani!")
+st.markdown("Ask me anything about BITS Pilani!")
 
 # ========== SIDEBAR ==========
 with st.sidebar:
@@ -29,8 +29,6 @@ with st.sidebar:
 
 # ========== FILE PROCESSING ==========
 uploaded_content = ""
-uploaded_filename = uploaded_file.name if uploaded_file else ""
-
 if uploaded_file:
     file_type = uploaded_file.type
     if file_type == "application/pdf":
@@ -62,39 +60,39 @@ def load_vector_db(folder="."):
 
 retriever = load_vector_db()
 
-# ========== VANILLA RAG FUNCTION ==========
-def vanilla_rag_answer(question, lang="English", history=[]):
+# ========== MODULAR REASONING ENGINE ==========
+def scratchpad_reasoning(context, question):
+    return f"Let's think step-by-step.\n\nContext:\n{context}\n\nQuestion:\n{question}"
+
+def build_react_prompt(context, question, lang):
+    return [
+        {"role": "system", "content": (
+            f"You are BitsBuddy, a funny and helpful BITSian senior. Answer in {lang}.\n"
+            "Use emojis, break things into steps (like a scratchpad), ask yourself questions, and explain clearly.\n"
+            "Use this context and your own reasoning to answer."
+        )},
+        {"role": "user", "content": scratchpad_reasoning(context, question)}
+    ]
+
+def query_llm(messages):
+    response = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "HTTP-Referer": "https://chat.openai.com",
+            "X-Title": "Modular RAG Buddy"
+        },
+        json={"model": MODEL_NAME, "messages": messages}
+    )
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"]
+
+def modular_rag_answer(question, lang="English"):
     try:
-        # Step 1: Retrieve docs
-        docs = retriever.get_relevant_documents(question)
+        docs = retriever.get_relevant_documents(question)  # Retrieval-aware
         context = "\n\n".join([doc.page_content for doc in docs])
-
-        # Step 2: Format prompt
-        messages = [
-            {
-                "role": "system",
-                "content": (
-                    f"You are BitsBuddy, a funny and smart BITSian senior. "
-                    f"Answer in {lang}. Be informal, emoji-loving, and student-friendly. "
-                    f"Use the following context to answer the question accurately."
-                )
-            },
-            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"}
-        ]
-
-        # Step 3: Call LLM
-        response = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "HTTP-Referer": "https://chat.openai.com",
-                "X-Title": "Vanilla RAG Buddy"
-            },
-            json={"model": MODEL_NAME, "messages": messages}
-        )
-        response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"]
-
+        messages = build_react_prompt(context, question, lang)  # ReAct + Scratchpad + Self-Ask
+        return query_llm(messages)
     except Exception as e:
         return f"❌ Error: {e}"
 
@@ -104,8 +102,8 @@ if "chat" not in st.session_state:
 
 query = st.chat_input("💬 Ask anything about BITS Pilani...")
 if query:
-    with st.spinner("🧠 Thinking like a senior..."):
-        answer = vanilla_rag_answer(query, lang=language, history=st.session_state.chat)
+    with st.spinner("🧫 Thinking like a senior..."):
+        answer = modular_rag_answer(query, lang=language)
         st.session_state.chat.append({
             "question": query,
             "answer": answer,
@@ -113,10 +111,9 @@ if query:
         })
 
 # ========== CHAT DISPLAY ==========
-for idx, chat in enumerate(reversed(st.session_state.chat)):
+for chat in reversed(st.session_state.chat):
     with st.chat_message("user"):
         st.markdown(chat["question"])
-
     with st.chat_message("assistant"):
         response_placeholder = st.empty()
         animated = ""
@@ -128,7 +125,7 @@ for idx, chat in enumerate(reversed(st.session_state.chat)):
 
 # ========== CHAT HISTORY ==========
 with st.sidebar:
-    st.subheader("🗂️ Chat History")
+    st.subheader("📂 Chat History")
     for i, chat in enumerate(reversed(st.session_state.chat)):
         st.markdown(f"**Q{i+1}:** {chat['question']}")
         st.markdown(f"**A{i+1}:** {chat['answer'][:150]}...")
@@ -141,4 +138,4 @@ st.markdown("""
     Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani · 
     <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact Prakhar</a>
 </div>
-""", unsafe_allow_html=True)
+""", unsafe_allow_html=True)  
