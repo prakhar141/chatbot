@@ -62,82 +62,38 @@ def load_vector_db(folder="."):
 
 retriever = load_vector_db()
 
-# ========== REACT + RAG ==========
-def react_rag_agent(question, lang="English", history=[]):
-    system_prompt = (
-        f"You're BitsBuddy, a smart and funny BITSian senior who uses ReAct (Reasoning + Action). "
-        f"Answer in {lang}. Be informal, emoji-loving, and context-aware. "
-        f"You can THINK, then SEARCH (retrieve), then OBSERVE, and finally ANSWER."
-    )
-
-    messages = [{"role": "system", "content": system_prompt}]
-    for h in history[-3:]:
-        messages.append({"role": "user", "content": h["question"]})
-        messages.append({"role": "assistant", "content": h["answer"]})
-    messages.append({
-        "role": "user",
-        "content": (
-            f"Question: {question}\n"
-            "Use the format:\n"
-            "Thought: ...\n"
-            "Action: Search[query]\n"
-            "Observation: ...\n"
-            "Thought: ...\n"
-            "Final Answer: ..."
-        )
-    })
-
+# ========== VANILLA RAG FUNCTION ==========
+def vanilla_rag_answer(question, lang="English", history=[]):
     try:
-        # Initial ReAct step
-        res = requests.post(
+        # Step 1: Retrieve docs
+        docs = retriever.get_relevant_documents(question)
+        context = "\n\n".join([doc.page_content for doc in docs])
+
+        # Step 2: Format prompt
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    f"You are BitsBuddy, a funny and smart BITSian senior. "
+                    f"Answer in {lang}. Be informal, emoji-loving, and student-friendly. "
+                    f"Use the following context to answer the question accurately."
+                )
+            },
+            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"}
+        ]
+
+        # Step 3: Call LLM
+        response = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                 "HTTP-Referer": "https://chat.openai.com",
-                "X-Title": "ReAct RAG Agent"
+                "X-Title": "Vanilla RAG Buddy"
             },
             json={"model": MODEL_NAME, "messages": messages}
         )
-        res.raise_for_status()
-        model_response = res.json()["choices"][0]["message"]["content"]
-
-        # Extract search queries and rerun with document context
-        if "Search[" in model_response:
-            search_queries = []
-            lines = model_response.splitlines()
-            for line in lines:
-                if line.strip().startswith("Action: Search["):
-                    q = line.strip().split("Search[")[1].rstrip("]").strip("]")
-                    search_queries.append(q)
-
-            context = ""
-            for sq in search_queries:
-                docs = retriever.get_relevant_documents(sq)
-                context += "\n\n".join([doc.page_content for doc in docs])
-
-            # Final answer based on reasoning + retrieved context
-            messages.append({
-                "role": "assistant",
-                "content": model_response
-            })
-            messages.append({
-                "role": "user",
-                "content": f"Use this retrieved context to write the final answer:\n{context}"
-            })
-
-            final = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                    "HTTP-Referer": "https://chat.openai.com",
-                    "X-Title": "Final Answer Generator"
-                },
-                json={"model": MODEL_NAME, "messages": messages}
-            )
-            final.raise_for_status()
-            return final.json()["choices"][0]["message"]["content"]
-        else:
-            return model_response
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"]
 
     except Exception as e:
         return f"❌ Error: {e}"
@@ -149,7 +105,7 @@ if "chat" not in st.session_state:
 query = st.chat_input("💬 Ask anything about BITS Pilani...")
 if query:
     with st.spinner("🧠 Thinking like a senior..."):
-        answer = react_rag_agent(query, lang=language, history=st.session_state.chat)
+        answer = vanilla_rag_answer(query, lang=language, history=st.session_state.chat)
         st.session_state.chat.append({
             "question": query,
             "answer": answer,
