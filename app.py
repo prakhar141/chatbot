@@ -1,7 +1,7 @@
 import os, time, fitz, requests
 from PIL import Image
 import streamlit as st
-import pytesseract
+from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -16,6 +16,10 @@ K_VAL = 4
 st.set_page_config(page_title="BITS Buddy", layout="wide")
 st.title("🎓 BITS Buddy")
 st.markdown("Ask me anything about BITS Pilani")
+
+# Load TrOCR model and processor
+processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-stage1")
+trocr_model = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-base-stage1")
 
 # ========== SIDEBAR ==========
 with st.sidebar:
@@ -35,7 +39,10 @@ if uploaded_file:
         with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
             uploaded_content = "\n".join(page.get_text() for page in doc)
     elif "image" in file_type:
-        uploaded_content = pytesseract.image_to_string(Image.open(uploaded_file))
+        image = Image.open(uploaded_file).convert("RGB")
+        pixel_values = processor(images=image, return_tensors="pt").pixel_values
+        generated_ids = trocr_model.generate(pixel_values)
+        uploaded_content = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
     if uploaded_content.strip():
         st.success("✅ Extracted content from file.")
@@ -102,13 +109,8 @@ def modular_rag_smart_answer(question, lang="English"):
         docs = retriever.get_relevant_documents(question)
         context = "\n\n".join([doc.page_content for doc in docs])
 
-        # Step 1: Primary Answer
         primary = query_llm(build_primary_prompt(context, question, lang))
-
-        # Step 2: Critique (fact-check / flaw detection)
         critique = query_llm(build_critic_prompt(context, question, primary))
-
-        # Step 3: Final Revised Answer
         improved = query_llm(build_final_prompt(context, question, primary, critique, lang))
 
         return improved
@@ -158,4 +160,3 @@ st.markdown("""
     <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact Prakhar</a>
 </div>
 """, unsafe_allow_html=True)
-
