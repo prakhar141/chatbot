@@ -15,7 +15,7 @@ K_VAL = 4
 
 st.set_page_config(page_title="🤖 BITS Buddy+", layout="wide")
 st.title("🎓 BITS Buddy+ (Smarter Edition)")
-st.markdown("Ask me anything about BITS Pilani, with self-evaluated, fact-checked answers!")
+st.markdown("Ask me anything about BITS Pilani")
 
 # ========== SIDEBAR ==========
 with st.sidebar:
