@@ -158,4 +158,4 @@ st.markdown("""
     <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact Prakhar</a>
 </div>
 """, unsafe_allow_html=True)
-is code ko dubara likho with improvement u gave in option 1
+
