@@ -1,10 +1,7 @@
-import os
-import time
-import fitz
-import requests
+import os, time, fitz, requests
 from PIL import Image
 import streamlit as st
-import streamlit.components.v1 as components
+#import pytesseract
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -19,61 +16,6 @@ K_VAL = 4
 st.set_page_config(page_title="BITS Buddy", layout="wide")
 st.title("🎓 BITS Buddy")
 st.markdown("Ask me anything about BITS Pilani")
-
-# ========== FIREBASE AUTH COMPONENT ==========
-if "user_email" not in st.session_state:
-
-    firebase_auth_html = """
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
-        <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
-        <script>
-          const firebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "your-project.firebaseapp.com",
-            projectId: "your-project",
-          };
-          firebase.initializeApp(firebaseConfig);
-
-          function signInWithGoogle() {
-            const provider = new firebase.auth.GoogleAuthProvider();
-            firebase.auth().signInWithPopup(provider)
-              .then((result) => {
-                const email = result.user.email;
-                const idToken = result.user.getIdToken().then((token) => {
-                  const message = { email: email, token: token };
-                  window.parent.postMessage(message, "*");
-                });
-              }).catch((error) => {
-                console.log("Login Error", error);
-              });
-          }
-
-          window.addEventListener("load", () => {
-            const btn = document.createElement("button");
-            btn.innerText = "Sign in with Google";
-            btn.onclick = signInWithGoogle;
-            document.body.appendChild(btn);
-          });
-
-          window.addEventListener("message", (event) => {
-            if (event.data.type === "streamlit:setComponentValue") {
-              console.log("Component set value:", event.data.value);
-            }
-          });
-        </script>
-      </head>
-      <body style="text-align: center;">
-      </body>
-    </html>
-    """
-    components.html(firebase_auth_html, height=500)
-    st.stop()
-
-# Show logged-in user email
-st.success(f"✅ Logged in as {st.session_state.get('user_email', 'User')}")
 
 # ========== SIDEBAR ==========
 with st.sidebar:
@@ -92,6 +34,8 @@ if uploaded_file:
     if file_type == "application/pdf":
         with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
             uploaded_content = "\n".join(page.get_text() for page in doc)
+   # elif "image" in file_type:
+        #uploaded_content = pytesseract.image_to_string(Image.open(uploaded_file))
 
     if uploaded_content.strip():
         st.success("✅ Extracted content from file.")
@@ -210,8 +154,7 @@ with st.sidebar:
 st.markdown("""
 <hr style="margin-top: 40px;">
 <div style='text-align: center; color: #888; font-size: 14px;'>
-    Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani · 
+    Built with 🧠 by <b>Prakhar Mathur</b> · BITS Pilani · 
     <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact Prakhar</a>
 </div>
 """, unsafe_allow_html=True)
-
