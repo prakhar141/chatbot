@@ -160,11 +160,11 @@ if query:
             for c in thinking_text:
                 animated += c
                 thinking_placeholder.markdown(f"**Thinking:** {animated}|")
-                time.sleep(0.01)  # adjust speed as you like
+                time.sleep(0.1)  # adjust speed as you like
             thinking_placeholder.markdown(f"**Thinking:** {animated}")  # finalize thinking
 
             # short dramatic pause
-            time.sleep(0.35)
+            time.sleep(0.5)
 
             # 1-3) Run modular RAG pipeline (primary, critique, final)
             # Show small stage updates while the calls are happening (so user sees progress)
@@ -217,18 +217,18 @@ for chat in reversed(st.session_state.chat):
         # present a compact "thinking" expander with the AI monologue + stages if user wants to inspect
         st.markdown(chat["final"])
 
-        with st.expander("🧾 Show model reasoning (thinking)", expanded=False):
-            st.markdown("**Thinking:**")
-            st.markdown(chat.get("thinking", ""))
-            st.markdown("---")
+        #with st.expander("🧾 Show model reasoning (thinking)", expanded=False):
+            #st.markdown("**Thinking:**")
+            #st.markdown(chat.get("thinking", ""))
+            #st.markdown("---")
            # st.markdown("**Draft (primary):**")
             #st.markdown(chat.get("primary", ""))
             #st.markdown("---")
             #st.markdown("**Critique:**")
             #st.markdown(chat.get("critique", ""))
             #st.markdown("---")
-            st.markdown("**Final:**")
-            st.markdown(chat.get("final", ""))
+            #st.markdown("**Final:**")
+            #st.markdown(chat.get("final", ""))
 
 # ========== SIDEBAR HISTORY ==========
 with st.sidebar:
