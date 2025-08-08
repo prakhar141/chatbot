@@ -12,7 +12,7 @@ from langchain.docstore.document import Document
 
 # ========== CONFIG ==========
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
-MODEL_NAME = "openai/gpt-oss-20b:free"
+MODEL_NAME = "qwen/qwen3-coder:free"
 EMBED_MODEL = "mixedbread-ai/mxbai-embed-large-v1"
 K_VAL = 4
 
