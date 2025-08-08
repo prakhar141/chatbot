@@ -12,13 +12,13 @@ from langchain.docstore.document import Document
 
 # ========== CONFIG ==========
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
-MODEL_NAME = "deepseek/deepseek-r1-0528:free"
+MODEL_NAME = "openai/gpt-oss-20b:free"
 EMBED_MODEL = "mixedbread-ai/mxbai-embed-large-v1"
 K_VAL = 4
 
 st.set_page_config(page_title="BITS Buddy", layout="wide")
 st.title("🎓 BITS Buddy")
-st.markdown("Ask me anything about BITS Pilani")
+st.markdown("Ask me anything about BITS Pilani — watch me think! 🧠")
 
 # ========== SIDEBAR ==========
 with st.sidebar:
@@ -137,10 +137,13 @@ def modular_rag_smart_answer(context, question, lang="English"):
     except Exception as e:
         return {"error": str(e)}
 
-# ========== CHAT SESSION HANDLER ==========
+# ========== SESSION INIT ==========
 if "chat" not in st.session_state:
     st.session_state.chat = []
+if "just_streamed" not in st.session_state:
+    st.session_state.just_streamed = False
 
+# ========== CHAT SESSION HANDLER ==========
 query = st.chat_input("💬 Ask anything about BITS Pilani...")
 if query:
     # Create the assistant chat bubble and stream "thinking" + final answer inside it
@@ -160,28 +163,31 @@ if query:
             for c in thinking_text:
                 animated += c
                 thinking_placeholder.markdown(f"**Thinking:** {animated}|")
-                time.sleep(0.01)
-            thinking_placeholder.markdown(f"**Thinking:** {animated}")  
+                time.sleep(0.01)  # adjust speed as you like
+            thinking_placeholder.markdown(f"**Thinking:** {animated}")  # finalize thinking
 
-            time.sleep(0.5)
+            # short dramatic pause
+            time.sleep(0.35)
 
-            # 1-3) Run modular RAG pipeline
+            # 1-3) Run modular RAG pipeline (primary, critique, final)
             thinking_placeholder.markdown("🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
             rag_result = modular_rag_smart_answer(context, query, lang=language)
 
+            # Build a consistent chat record no matter success/failure
+            chat_record = {
+                "question": query,
+                "thinking": thinking_text,
+                "primary": rag_result.get("primary", ""),
+                "critique": rag_result.get("critique", ""),
+                "final": rag_result.get("final", rag_result.get("error", "Sorry — something went wrong.")),
+                "language": language
+            }
+
             if "error" in rag_result:
                 thinking_placeholder.markdown(f"❌ Error while generating answer: {rag_result['error']}")
-                st.session_state.chat.append({
-                    "question": query,
-                    "thinking": thinking_text,
-                    "primary": rag_result.get("primary", ""),
-                    "critique": rag_result.get("critique", ""),
-                    "final": rag_result.get("final", rag_result.get("error", "")),
-                    "language": language
-                })
             else:
-                # Stream the final polished answer
-                final_answer = rag_result["final"]
+                # Stream the final polished answer by replacing the thinking monologue
+                final_answer = chat_record["final"]
                 animated = ""
                 for c in final_answer:
                     animated += c
@@ -189,28 +195,51 @@ if query:
                     time.sleep(0.005)
                 thinking_placeholder.markdown(animated)
 
-                # Save to history
-                st.session_state.chat.append({
-                    "question": query,
-                    "final": rag_result["final"],
-                    "language": language
-                })
+            # Save full stages to chat history and mark that we just streamed the latest
+            st.session_state.chat.append(chat_record)
+            st.session_state.just_streamed = True
 
         except Exception as e:
             thinking_placeholder.markdown(f"❌ Error: {e}")
             st.session_state.chat.append({
                 "question": query,
+                "thinking": f"Error generating thinking: {e}",
+                "primary": "",
+                "critique": "",
                 "final": f"Error: {e}",
                 "language": language
             })
+            st.session_state.just_streamed = True
 
 # ========== DISPLAY CHAT (history) ==========
-# Only display previous chats (exclude the latest one already shown live)
-for chat in reversed(st.session_state.chat[:-1]):
+# When we have just streamed an answer in this run, skip the last chat entry from the history
+if st.session_state.just_streamed and len(st.session_state.chat) > 0:
+    history_to_show = st.session_state.chat[:-1]
+else:
+    history_to_show = st.session_state.chat
+
+for chat in reversed(history_to_show):
     with st.chat_message("user"):
         st.markdown(chat["question"])
     with st.chat_message("assistant"):
         st.markdown(chat["final"])
+        # Optional: show reasoning in expander for older messages
+        # with st.expander("🧾 Show model reasoning (thinking + stages)", expanded=False):
+        #     st.markdown("**Thinking (AI monologue):**")
+        #     st.markdown(chat.get("thinking", ""))
+        #     st.markdown("---")
+        #     st.markdown("**Draft (primary):**")
+        #     st.markdown(chat.get("primary", ""))
+        #     st.markdown("---")
+        #     st.markdown("**Critique:**")
+        #     st.markdown(chat.get("critique", ""))
+        #     st.markdown("---")
+        #     st.markdown("**Final:**")
+        #     st.markdown(chat.get("final", ""))
+
+# After rendering history, reset the 'just_streamed' flag so future runs show all messages
+if st.session_state.just_streamed:
+    st.session_state.just_streamed = False
 
 # ========== SIDEBAR HISTORY ==========
 with st.sidebar:
@@ -219,3 +248,12 @@ with st.sidebar:
         st.markdown(f"**Q{i+1}:** {chat['question']}")
         st.markdown(f"**A{i+1}:** {chat['final'][:150]}...")
         st.markdown("---")
+
+# ========== FOOTER ==========
+st.markdown("""
+<hr style="margin-top: 40px;">
+<div style='text-align: center; color: #888; font-size: 14px;'>
+    Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani · 
+    <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact Prakhar</a>
+</div>
+""", unsafe_allow_html=True)
