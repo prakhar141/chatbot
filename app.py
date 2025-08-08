@@ -160,7 +160,7 @@ if query:
             for c in thinking_text:
                 animated += c
                 thinking_placeholder.markdown(f"**Thinking:** {animated}|")
-                time.sleep(0.1)  # adjust speed as you like
+                time.sleep(0.01)  # adjust speed as you like
             thinking_placeholder.markdown(f"**Thinking:** {animated}")  # finalize thinking
 
             # short dramatic pause
