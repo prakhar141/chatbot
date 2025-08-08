@@ -1,7 +1,10 @@
-import os, time, fitz, requests
+import os
+import time
+import fitz
+import requests
 from PIL import Image
 import streamlit as st
-#import pytesseract
+# import pytesseract
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -34,14 +37,14 @@ if uploaded_file:
     if file_type == "application/pdf":
         with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
             uploaded_content = "\n".join(page.get_text() for page in doc)
-   # elif "image" in file_type:
-        #uploaded_content = pytesseract.image_to_string(Image.open(uploaded_file))
+    # elif "image" in file_type:
+    #     uploaded_content = pytesseract.image_to_string(Image.open(uploaded_file))
 
     if uploaded_content.strip():
         st.success("✅ Extracted content from file.")
-        st.text_area("📄 Preview", uploaded_content[:1000], height=200)
+        st.text_area("📄 Preview (first 1000 chars)", uploaded_content[:1000], height=200)
     else:
-        st.warning("⚠️ Couldn't extract readable text.")
+        st.warning("⚠️ Couldn't extract readable text from the file.")
 
 # ========== VECTOR DB ==========
 @st.cache_resource(show_spinner="🔍 Indexing documents...")
@@ -54,14 +57,23 @@ def load_vector_db(folder="."):
                 text = "\n".join(page.get_text() for page in doc)
                 chunks = splitter.split_text(text)
                 docs.extend([Document(page_content=c, metadata={"source": file}) for c in chunks])
+    if not docs:
+        # return an empty retriever-like object that returns no docs
+        class EmptyRetriever:
+            def get_relevant_documents(self, q): return []
+        return EmptyRetriever()
     embedder = HuggingFaceEmbeddings(model_name=EMBED_MODEL)
     vectordb = FAISS.from_documents(docs, embedder)
     return vectordb.as_retriever(search_type="similarity", k=K_VAL)
 
 retriever = load_vector_db()
 
-# ========== LLM Query Function ==========
+# ========== LLM QUERY FUNCTION ==========
 def query_llm(messages):
+    """
+    messages: list of {role, content}
+    returns single string content
+    """
     response = requests.post(
         "https://openrouter.ai/api/v1/chat/completions",
         headers={
@@ -74,9 +86,19 @@ def query_llm(messages):
     response.raise_for_status()
     return response.json()["choices"][0]["message"]["content"]
 
-# ========== Prompt Generators ==========
+# ========== PROMPT BUILDERS ==========
 def scratchpad_reasoning(context, question):
     return f"Let's think step-by-step.\n\nContext:\n{context}\n\nQuestion:\n{question}"
+
+def build_thinking_prompt(question, context):
+    return [
+        {"role": "system", "content": (
+            "You are an assistant that narrates a concise, casual internal monologue "
+            "before answering. Keep it 3-5 short sentences, conversational, use 'Hmm...', 'Oh I see...', 'Wait...', "
+            "and DO NOT give the final answer — only describe what you are thinking and what you plan to do next."
+        )},
+        {"role": "user", "content": f"Question: {question}\n\nRelevant context:\n{context}"}
+    ]
 
 def build_primary_prompt(context, question, lang):
     return [
@@ -96,13 +118,13 @@ def build_final_prompt(context, question, answer, critique, lang):
         {"role": "user", "content": f"Original Answer:\n{answer}\n\nCritique:\n{critique}\n\nNow improve the answer accordingly."}
     ]
 
-# ========== SMART MODULAR RAG ANSWER ==========
-def modular_rag_smart_answer(question, lang="English"):
+# ========== SMART MODULAR RAG ANSWER (returns stages) ==========
+def modular_rag_smart_answer(context, question, lang="English"):
+    """
+    Returns dict with keys: primary, critique, final
+    """
     try:
-        docs = retriever.get_relevant_documents(question)
-        context = "\n\n".join([doc.page_content for doc in docs])
-
-        # Step 1: Primary Answer
+        # Step 1: Primary Answer (draft)
         primary = query_llm(build_primary_prompt(context, question, lang))
 
         # Step 2: Critique (fact-check / flaw detection)
@@ -111,9 +133,9 @@ def modular_rag_smart_answer(question, lang="English"):
         # Step 3: Final Revised Answer
         improved = query_llm(build_final_prompt(context, question, primary, critique, lang))
 
-        return improved
+        return {"primary": primary, "critique": critique, "final": improved}
     except Exception as e:
-        return f"❌ Error: {e}"
+        return {"error": str(e)}
 
 # ========== CHAT SESSION HANDLER ==========
 if "chat" not in st.session_state:
@@ -121,40 +143,106 @@ if "chat" not in st.session_state:
 
 query = st.chat_input("💬 Ask anything about BITS Pilani...")
 if query:
-    with st.spinner("🧠 Thinking, checking, and reflecting..."):
-        answer = modular_rag_smart_answer(query, lang=language)
-        st.session_state.chat.append({
-            "question": query,
-            "answer": answer,
-            "language": language
-        })
+    # Create the assistant chat bubble and stream "thinking" + final answer inside it
+    with st.chat_message("assistant"):
+        thinking_placeholder = st.empty()
+        try:
+            # Retrieve context once and reuse
+            docs = retriever.get_relevant_documents(query)
+            context = "\n\n".join([doc.page_content for doc in docs]) if docs else ""
 
-# ========== DISPLAY CHAT ==========
+            # 0) Generate AI "thinking out loud" monologue
+            thinking_prompt = build_thinking_prompt(query, context)
+            thinking_text = query_llm(thinking_prompt)
+
+            # Stream the thinking monologue (GPT-like)
+            animated = ""
+            for c in thinking_text:
+                animated += c
+                thinking_placeholder.markdown(f"**Thinking:** {animated}|")
+                time.sleep(0.01)  # adjust speed as you like
+            thinking_placeholder.markdown(f"**Thinking:** {animated}")  # finalize thinking
+
+            # short dramatic pause
+            time.sleep(0.35)
+
+            # 1-3) Run modular RAG pipeline (primary, critique, final)
+            # Show small stage updates while the calls are happening (so user sees progress)
+            thinking_placeholder.markdown("🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
+            rag_result = modular_rag_smart_answer(context, query, lang=language)
+
+            if "error" in rag_result:
+                thinking_placeholder.markdown(f"❌ Error while generating answer: {rag_result['error']}")
+                st.session_state.chat.append({
+                    "question": query,
+                    "thinking": thinking_text,
+                    "primary": rag_result.get("primary", ""),
+                    "critique": rag_result.get("critique", ""),
+                    "final": rag_result.get("final", rag_result.get("error", "")),
+                    "language": language
+                })
+            else:
+                # Stream the final polished answer by replacing the thinking monologue
+                final_answer = rag_result["final"]
+                animated = ""
+                for c in final_answer:
+                    animated += c
+                    # show a | cursor while streaming
+                    thinking_placeholder.markdown(animated + "|")
+                    time.sleep(0.005)
+                thinking_placeholder.markdown(animated)
+
+                # Save full stages to chat history
+                st.session_state.chat.append({
+                    "question": query,
+                    "final": rag_result["final"],
+                    "language": language
+                })
+
+        except Exception as e:
+            thinking_placeholder.markdown(f"❌ Error: {e}")
+            st.session_state.chat.append({
+                "question": query,
+                "final": f"Error: {e}",
+                "language": language
+            })
+
+# ========== DISPLAY CHAT (history) ==========
 for chat in reversed(st.session_state.chat):
     with st.chat_message("user"):
         st.markdown(chat["question"])
+
     with st.chat_message("assistant"):
-        response_placeholder = st.empty()
-        animated = ""
-        for c in chat["answer"]:
-            animated += c
-            response_placeholder.markdown(animated + "|")
-            time.sleep(0.005)
-        response_placeholder.markdown(animated)
+        # show the final (polished) answer
+        # present a compact "thinking" expander with the AI monologue + stages if user wants to inspect
+        st.markdown(chat["final"])
+
+        with st.expander("🧾 Show model reasoning (thinking)", expanded=False):
+            st.markdown("**Thinking:**")
+            st.markdown(chat.get("thinking", ""))
+            st.markdown("---")
+           # st.markdown("**Draft (primary):**")
+            #st.markdown(chat.get("primary", ""))
+            #st.markdown("---")
+            #st.markdown("**Critique:**")
+            #st.markdown(chat.get("critique", ""))
+            #st.markdown("---")
+            st.markdown("**Final:**")
+            st.markdown(chat.get("final", ""))
 
 # ========== SIDEBAR HISTORY ==========
 with st.sidebar:
     st.subheader("📂 Chat History")
     for i, chat in enumerate(reversed(st.session_state.chat)):
         st.markdown(f"**Q{i+1}:** {chat['question']}")
-        st.markdown(f"**A{i+1}:** {chat['answer'][:150]}...")
+        st.markdown(f"**A{i+1}:** {chat['final'][:150]}...")
         st.markdown("---")
 
 # ========== FOOTER ==========
 st.markdown("""
 <hr style="margin-top: 40px;">
 <div style='text-align: center; color: #888; font-size: 14px;'>
-    Built with 🧠 by <b>Prakhar Mathur</b> · BITS Pilani · 
+    Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani · 
     <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact Prakhar</a>
 </div>
 """, unsafe_allow_html=True)
