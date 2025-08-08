@@ -160,14 +160,12 @@ if query:
             for c in thinking_text:
                 animated += c
                 thinking_placeholder.markdown(f"**Thinking:** {animated}|")
-                time.sleep(0.01)  # adjust speed as you like
-            thinking_placeholder.markdown(f"**Thinking:** {animated}")  # finalize thinking
+                time.sleep(0.01)
+            thinking_placeholder.markdown(f"**Thinking:** {animated}")  
 
-            # short dramatic pause
             time.sleep(0.5)
 
-            # 1-3) Run modular RAG pipeline (primary, critique, final)
-            # Show small stage updates while the calls are happening (so user sees progress)
+            # 1-3) Run modular RAG pipeline
             thinking_placeholder.markdown("🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
             rag_result = modular_rag_smart_answer(context, query, lang=language)
 
@@ -182,17 +180,16 @@ if query:
                     "language": language
                 })
             else:
-                # Stream the final polished answer by replacing the thinking monologue
+                # Stream the final polished answer
                 final_answer = rag_result["final"]
                 animated = ""
                 for c in final_answer:
                     animated += c
-                    # show a | cursor while streaming
                     thinking_placeholder.markdown(animated + "|")
                     time.sleep(0.005)
                 thinking_placeholder.markdown(animated)
 
-                # Save full stages to chat history
+                # Save to history
                 st.session_state.chat.append({
                     "question": query,
                     "final": rag_result["final"],
@@ -208,27 +205,12 @@ if query:
             })
 
 # ========== DISPLAY CHAT (history) ==========
-for chat in reversed(st.session_state.chat):
+# Only display previous chats (exclude the latest one already shown live)
+for chat in reversed(st.session_state.chat[:-1]):
     with st.chat_message("user"):
         st.markdown(chat["question"])
-
     with st.chat_message("assistant"):
-        # show the final (polished) answer
-        # present a compact "thinking" expander with the AI monologue + stages if user wants to inspect
         st.markdown(chat["final"])
-
-        #with st.expander("🧾 Show model reasoning (thinking)", expanded=False):
-            #st.markdown("**Thinking:**")
-            #st.markdown(chat.get("thinking", ""))
-            #st.markdown("---")
-           # st.markdown("**Draft (primary):**")
-            #st.markdown(chat.get("primary", ""))
-            #st.markdown("---")
-            #st.markdown("**Critique:**")
-            #st.markdown(chat.get("critique", ""))
-            #st.markdown("---")
-            #st.markdown("**Final:**")
-            #st.markdown(chat.get("final", ""))
 
 # ========== SIDEBAR HISTORY ==========
 with st.sidebar:
@@ -237,12 +219,3 @@ with st.sidebar:
         st.markdown(f"**Q{i+1}:** {chat['question']}")
         st.markdown(f"**A{i+1}:** {chat['final'][:150]}...")
         st.markdown("---")
-
-# ========== FOOTER ==========
-st.markdown("""
-<hr style="margin-top: 40px;">
-<div style='text-align: center; color: #888; font-size: 14px;'>
-    Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani · 
-    <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact Prakhar</a>
-</div>
-""", unsafe_allow_html=True)
