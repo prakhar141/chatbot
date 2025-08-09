@@ -117,28 +117,32 @@ def make_cache_key(model: str, messages: List[Dict[str, str]]):
     return digest.hexdigest()
 
 # ========== VECTOR DB (cached resource) ==========
-@st.cache_resource(show_spinner="🔍 Indexing documents...")
+@st.cache_resource
 def load_vector_db(folder="."):
     docs = []
     splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=50)
+
     for file in os.listdir(folder):
         if file.lower().endswith(".pdf"):
             try:
                 with fitz.open(os.path.join(folder, file)) as doc:
-                    text = "
-".join(page.get_text() for page in doc)
+                    text = "\n".join(page.get_text() for page in doc)
                     chunks = splitter.split_text(text)
-                    docs.extend([Document(page_content=c, metadata={"source": file}) for c in chunks])
+                    docs.extend([
+                        Document(page_content=c, metadata={"source": file})
+                        for c in chunks
+                    ])
             except Exception as e:
                 st.warning(f"Could not read {file}: {e}")
+
     if not docs:
         class EmptyRetriever:
             def get_relevant_documents(self, q): return []
         return EmptyRetriever()
+
     embedder = HuggingFaceEmbeddings(model_name=EMBED_MODEL)
     vectordb = FAISS.from_documents(docs, embedder)
     return vectordb.as_retriever(search_type="similarity", k=K_VAL)
-
 # Load retriever once (indexes files in current folder)
 retriever = load_vector_db()
 
