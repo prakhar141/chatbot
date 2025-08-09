@@ -18,7 +18,7 @@ from langchain.docstore.document import Document
 # ========== CONFIG (tweak these models per your OpenRouter access) ==========
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
 # Tiered models (prefer models you actually can access via OpenRouter)
-MODEL_CHEAP = os.getenv("MODEL_CHEAP") or "mistralai/mistral-7b-instruct:free"        # cheap, good for short tasks
+MODEL_CHEAP = os.getenv("MODEL_CHEAP") or "deepseek/deepseek-chat-v3-0324:free"        # cheap, good for short tasks
 MODEL_MID = os.getenv("MODEL_MID") or "openai/gpt-oss-20b:free"          # mid-tier for primary/drafts
 MODEL_HIGH = os.getenv("MODEL_HIGH") or "deepseek/deepseek-r1-0528:free"              # high-quality for final answer (may be paid)
 # fallback list in order if model hits quota or returns 429
