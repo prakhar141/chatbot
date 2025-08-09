@@ -35,8 +35,8 @@ ENABLE_PERSISTENT_CACHE = True
 
 # App UI settings
 st.set_page_config(page_title="BITS Buddy", layout="wide")
-st.title("🎓 BITS Buddy (Refactor + SQLite Cache)")
-st.markdown("Ask me anything about BITS Pilani — now with persistent caching & fallbacks")
+st.title("🎓 BITS Buddy")
+st.markdown("Ask me anything about BITS Pilani")
 
 # ========== SIDEBAR ==========
 with st.sidebar:
