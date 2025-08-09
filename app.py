@@ -397,9 +397,7 @@ if query:
         thinking_placeholder = st.empty()
         try:
             docs = retriever.get_relevant_documents(query)
-            context = "
-
-".join([doc.page_content for doc in docs]) if docs else (uploaded_content or "")
+            context = "\n".join([doc.page_content for doc in docs]) if docs else (uploaded_content or "")
 
             # 0) Thinking monologue (stream-like animation locally)
             thinking_prompt = build_thinking_prompt(query, context)
@@ -412,9 +410,7 @@ if query:
             thinking_placeholder.markdown(f"**Thinking:** {animated}")
 
             time.sleep(0.25)
-            thinking_placeholder.markdown("🔁 Reasoning...
-
-• ✏️ Drafting initial answer...")
+            thinking_placeholder.markdown("🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
 
             rag_result = modular_rag_smart_answer(context, query, lang=language)
 
@@ -484,4 +480,4 @@ st.markdown("""
     Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani · 
     <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact Prakhar</a>
 </div>
-""", unsafe_allow_html=True)}]}
+""", unsafe_allow_html=True)
