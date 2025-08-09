@@ -40,7 +40,7 @@ OPENROUTER_URL = os.getenv("OPENROUTER_URL", "https://openrouter.ai/api/v1/chat/
 
 # ========== STREAMLIT UI SETUP ==========
 st.set_page_config(page_title="BITS Buddy", layout="wide")
-st.title("🎓 BITS Buddy — Improved RAG")
+st.title("🎓 BITS Buddy")
 st.markdown("Ask me anything about BITS Pilani")
 
 with st.sidebar:
