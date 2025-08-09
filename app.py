@@ -175,14 +175,15 @@ def load_documents_from_folder(folder='.'):
 
 # Build and cache vector DB retriever
 @st.cache_resource
-def build_vector_retriever(docs: List[Document], embed_model=EMBED_MODEL, k=K_DEFAULT):
-    if not docs:
+def build_vector_retriever(_docs: List[Document], embed_model=EMBED_MODEL, k=K_DEFAULT):
+    if not _docs:
         class EmptyRetriever:
             def get_relevant_documents(self, q): return []
         return EmptyRetriever()
     embedder = HuggingFaceEmbeddings(model_name=embed_model)
-    vectordb = FAISS.from_documents(docs, embedder)
+    vectordb = FAISS.from_documents(_docs, embedder)
     return vectordb.as_retriever(search_type='similarity', k=k), embedder
+
 
 # ========== MMR DIVERSITY SELECTION ==========
 
