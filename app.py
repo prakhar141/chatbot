@@ -153,8 +153,7 @@ if uploaded_file:
     if file_type == "application/pdf":
         try:
             with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
-                uploaded_content = "
-".join(page.get_text() for page in doc)
+                uploaded_content = "\n".join(page.get_text() for page in doc)
         except Exception as e:
             st.warning(f"PDF read error: {e}")
     elif "image" in file_type:
