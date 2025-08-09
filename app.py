@@ -260,62 +260,98 @@ def query_models_with_fallbacks(models: List[str], messages: List[Dict[str, str]
 
 # ========== PROMPT BUILDERS (concise prompts to save tokens) ==========
 def scratchpad_reasoning(context: str, question: str) -> str:
-    return f"Let's think step-by-step.
-
-Context (shortened):
-{(context[:2000] + '...') if len(context) > 2000 else context}
-
-Question:
-{question}"
+    return (
+        f"Let's think step-by-step.\n\n"
+        f"Context (shortened):\n"
+        f"{(context[:2000] + '...') if len(context) > 2000 else context}\n\n"
+        f"Question:\n"
+        f"{question}"
+    )
 
 
 def build_thinking_prompt(question: str, context: str) -> List[Dict[str, str]]:
     return [
-        {"role": "system", "content": (
-            "You are an assistant that narrates a concise, casual internal monologue before answering. Keep it 2-4 short sentences, conversational, use 'Hmm...', 'Oh I see...', 'Wait...' and DO NOT give the final answer — only describe what you are thinking and what you plan to do next."
-        )},
-        {"role": "user", "content": f"Question: {question}
-
-Relevant context:
-{(context[:1500]+'...') if len(context)>1500 else context}"}
+        {
+            "role": "system",
+            "content": (
+                "You are an assistant that narrates a concise, casual internal monologue "
+                "before answering. Keep it 2-4 short sentences, conversational, use 'Hmm...', "
+                "'Oh I see...', 'Wait...' and DO NOT give the final answer — only describe what "
+                "you are thinking and what you plan to do next."
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Question: {question}\n\n"
+                f"Relevant context:\n"
+                f"{(context[:1500] + '...') if len(context) > 1500 else context}"
+            )
+        }
     ]
 
 
 def build_primary_prompt(context: str, question: str, lang: str) -> List[Dict[str, str]]:
     return [
-        {"role": "system", "content": f"You are BitsBuddy, a BITSian senior. Answer in {lang}. Use emojis, be concise and helpful. Provide actionable steps if relevant."},
-        {"role": "user", "content": scratchpad_reasoning(context, question)}
+        {
+            "role": "system",
+            "content": (
+                f"You are BitsBuddy, a BITSian senior. Answer in {lang}. "
+                f"Use emojis, be concise and helpful. Provide actionable steps if relevant."
+            )
+        },
+        {
+            "role": "user",
+            "content": scratchpad_reasoning(context, question)
+        }
     ]
 
 
 def build_critic_prompt(context: str, question: str, answer: str) -> List[Dict[str, str]]:
     return [
-        {"role": "system", "content": "You are an honest critic checking the assistant’s answer for factual errors, incompleteness, or hallucinations. Keep critiques short and list any unsupported claims with reasons."},
-        {"role": "user", "content": f"Context:
-{(context[:1500]+'...') if len(context)>1500 else context}
-
-Question:
-{question}
-
-Answer:
-{answer}
-
-Critique and list corrections:"}
+        {
+            "role": "system",
+            "content": (
+                "You are an honest critic checking the assistant’s answer for factual errors, "
+                "incompleteness, or hallucinations. Keep critiques short and list any unsupported "
+                "claims with reasons."
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Context:\n"
+                f"{(context[:1500] + '...') if len(context) > 1500 else context}\n\n"
+                f"Question:\n"
+                f"{question}\n\n"
+                f"Answer:\n"
+                f"{answer}\n\n"
+                f"Critique and list corrections:"
+            )
+        }
     ]
 
 
 def build_final_prompt(context: str, question: str, answer: str, critique: str, lang: str) -> List[Dict[str, str]]:
     return [
-        {"role": "system", "content": f"You are BitsBuddy+ with self-evaluation enabled. Based on critique, revise your original answer. Be clear and concise in {lang}."},
-        {"role": "user", "content": f"Original Answer:
-{answer}
-
-Critique:
-{critique}
-
-Now improve the answer accordingly."}
+        {
+            "role": "system",
+            "content": (
+                f"You are BitsBuddy+ with self-evaluation enabled. Based on critique, "
+                f"revise your original answer. Be clear and concise in {lang}."
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Original Answer:\n"
+                f"{answer}\n\n"
+                f"Critique:\n"
+                f"{critique}\n\n"
+                f"Now improve the answer accordingly."
+            )
+        }
     ]
-
 # ========== MODULAR RAG PIPELINE (uses tiering + caching + fallbacks) ==========
 
 def modular_rag_smart_answer(context: str, question: str, lang: str = "English") -> Dict[str, Any]:
