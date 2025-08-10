@@ -59,14 +59,25 @@ def save_user_chat_history(uid: str, chat: List[Dict[str, Any]]):
 
 # ====== FIREBASE INIT ======
 if not firebase_admin._apps:
-    firebase_config = dict(st.secrets["firebase"])
-    firebase_config["private_key"] = firebase_config["private_key"].replace("\\n", "\n")
-    cred = credentials.Certificate(firebase_config)
-    firebase_admin.initialize_app(cred, {
-        'databaseURL': 'https://fir-d2037-default-rtdb.firebaseio.com/'  # your Realtime Database URL here
-    })
+    try:
+        firebase_config = dict(st.secrets["firebase"])
+        firebase_config["private_key"] = firebase_config["private_key"].replace("\\n", "\n")
+        
+        # ADDED: Get database URL from secrets
+        database_url = st.secrets["firebase"]["database_url"]
+        
+        cred = credentials.Certificate(firebase_config)
+        # ADDED: Pass database_url to initialize_app
+        firebase_admin.initialize_app(cred, {
+            'databaseURL': database_url
+        })
+    except Exception as e:
+        st.error(f"Firebase initialization failed: {e}")
+        st.stop()
 else:
     firebase_admin.get_app()
+
+# ADDED: Create database reference after initialization
 realtime_db = db.reference('/')
 # ====== LOGIN SCREEN ======
 def login_screen():
