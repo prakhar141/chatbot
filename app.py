@@ -480,4 +480,4 @@ st.markdown("""
     Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani · 
     <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact Prakhar</a>
 </div>
-""", unsafe_allow_html=True)  explain archetiure using real life example 
+""", unsafe_allow_html=True)  
