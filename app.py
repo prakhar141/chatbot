@@ -67,7 +67,7 @@ if not firebase_admin._apps:
     })
 else:
     firebase_admin.get_app()
-realtime_db = firebase_admin.db
+realtime_db = firebase_admin.db('/')
 # ====== LOGIN SCREEN ======
 def login_screen():
     st.title("🔐 BITS Buddy Login")
