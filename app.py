@@ -38,7 +38,9 @@ SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
 ENABLE_PERSISTENT_CACHE = True
 # ====== FIREBASE INIT ======
 if not firebase_admin._apps:
-    cred = credentials.Certificate("serviceAccountKey.json")  # Downloaded from Firebase
+    # Load Firebase credentials from Streamlit secrets
+    firebase_config = dict(st.secrets["firebase"])  # Reads from .streamlit/secrets.toml
+    cred = credentials.Certificate(firebase_config)
     firebase_admin.initialize_app(cred)
 
 # ====== LOGIN SCREEN ======
