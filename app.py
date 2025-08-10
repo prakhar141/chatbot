@@ -19,6 +19,7 @@ from firebase_admin import credentials, auth
 import streamlit as st
 import os
 from firebase_admin import firestore
+from firebase_admin import credentials, firestore, db as realtime_db, initialize_app, get_app
 
 # ========== CONFIG (tweak these models per your OpenRouter access) ==========
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
