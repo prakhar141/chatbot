@@ -166,6 +166,31 @@ if "authenticated" not in st.session_state or not st.session_state["authenticate
 st.set_page_config(page_title="BITS Buddy", layout="wide")
 st.title("🎓 BITS Buddy")
 st.markdown("Ask me anything about BITS Pilani")
+# 1. Load chat history after login
+if "authenticated" in st.session_state and st.session_state["authenticated"]:
+    st.title(f"Welcome {st.session_state['user_name']} 👋")
+
+    # Display previous messages
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    # 2. Chat input
+    if user_input := st.chat_input("Say something..."):
+        # User message
+        st.session_state.chat_history.append({"role": "user", "content": user_input})
+        with st.chat_message("user"):
+            st.markdown(user_input)
+
+        # Bot response
+        bot_reply = get_bot_response(user_input)
+        st.session_state.chat_history.append({"role": "assistant", "content": bot_reply})
+        with st.chat_message("assistant"):
+            st.markdown(bot_reply)
+
+        # 3. Save to Firebase
+        if "uid" in st.session_state:
+            save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
 
 # ========== SIDEBAR ==========
 with st.sidebar:
