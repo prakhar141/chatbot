@@ -18,9 +18,8 @@ import firebase_admin
 from firebase_admin import credentials, auth
 import streamlit as st
 import os
-from firebase_admin import firestore
-from firebase_admin import credentials, firestore, db as realtime_db, initialize_app, get_app
-
+#from firebase_admin import firestore
+from firebase_admin import credentials, initialize_app, db
 # ========== CONFIG (tweak these models per your OpenRouter access) ==========
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
 # Tiered models (prefer models you actually can access via OpenRouter)
@@ -61,15 +60,12 @@ def save_user_chat_history(uid: str, chat: List[Dict[str, Any]]):
 if not firebase_admin._apps:
     firebase_config = dict(st.secrets["firebase"])
     firebase_config["private_key"] = firebase_config["private_key"].replace("\\n", "\n")
-    database_url = firebase_config.get("database_url")
-    if not database_url:
-        st.error("Firebase database_url missing in secrets!")
     cred = credentials.Certificate(firebase_config)
-    firebase_admin.initialize_app(cred, {'databaseURL': database_url})
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': 'https://fir-d2037-default-rtdb.firebaseio.com/'  # your Realtime Database URL here
+    })
 else:
     firebase_admin.get_app()
-
-db = firestore.client()
 
 # ====== LOGIN SCREEN ======
 def login_screen():
