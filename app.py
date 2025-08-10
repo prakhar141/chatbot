@@ -39,8 +39,9 @@ SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
 ENABLE_PERSISTENT_CACHE = True
 def load_user_chat_history(uid: str) -> List[Dict[str, Any]]:
     try:
-        doc_ref = db.collection("user_chats").document(uid)
-        doc = doc_ref.get()
+        ref = db.reference(f"user_chats/{uid}")
+        doc = ref.get()
+
         if doc.exists:
             return doc.to_dict().get("chat", [])
         else:
@@ -51,8 +52,8 @@ def load_user_chat_history(uid: str) -> List[Dict[str, Any]]:
 
 def save_user_chat_history(uid: str, chat: List[Dict[str, Any]]):
     try:
-        doc_ref = db.collection("user_chats").document(uid)
-        doc_ref.set({"chat": chat})
+        ref = db.reference(f"user_chats/{uid}")
+        doc = ref.get()
     except Exception as e:
         st.warning(f"Failed to save chat history: {e}")
 
