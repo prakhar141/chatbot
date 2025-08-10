@@ -462,6 +462,10 @@ if "authenticated" in st.session_state and st.session_state["authenticated"]:
     if "chat" not in st.session_state:
         uid = st.session_state.get("user_uid")
         st.session_state.chat = load_user_chat_history(uid) if uid else []
+    
+    # Initialize just_streamed here
+    if "just_streamed" not in st.session_state:
+        st.session_state.just_streamed = False
 # ========== CHAT HANDLER (UI) ==========
 query = st.chat_input("💬 Ask anything about BITS Pilani...")
 if query:
