@@ -494,4 +494,4 @@ st.markdown("""
     Built with ❤️ by <b>Prakhar Mathur</b> · BITS Pilani · 
     <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact Prakhar</a>
 </div>
-""", unsafe_allow_html=True)  when this will be writing its final response will it be using animation ('|') 
+""", unsafe_allow_html=True)
