@@ -10,6 +10,10 @@ from firebase_admin import credentials, auth, exceptions
 from PIL import Image
 import streamlit as st
 from typing import List, Dict, Any, Optional
+# ====== CONFIG ======
+ENABLE_PERSISTENT_CACHE = True
+SQLITE_DB_PATH = "cache.db"
+CACHE_MAX_ENTRIES = 4000
 
 # Initialize Firebase Admin SDK
 if not firebase_admin._apps:
