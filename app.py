@@ -57,15 +57,23 @@ def save_user_chat_history(uid: str, chat: List[Dict[str, Any]]):
         st.warning(f"Failed to save chat history: {e}")
 
 # ====== FIREBASE INIT ======
+from firebase_admin import credentials, firestore, db as realtime_db, initialize_app, get_app
+
 if not firebase_admin._apps:
     firebase_config = dict(st.secrets["firebase"])
     firebase_config["private_key"] = firebase_config["private_key"].replace("\\n", "\n")
     cred = credentials.Certificate(firebase_config)
-    firebase_admin.initialize_app(cred)
+
+    # Initialize app with databaseURL for Realtime Database
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': 'https://fir-d2037-default-rtdb.firebaseio.com/'
+    })
 else:
-    # If already initialized, get the default app (optional, but safe)
     firebase_admin.get_app()
-db = firestore.client()
+
+
+# Realtime Database reference
+realtime_db_ref = realtime_db.reference()
 # ====== LOGIN SCREEN ======
 def login_screen():
     st.title("🔐 BITS Buddy Login")
