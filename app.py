@@ -63,23 +63,7 @@ def save_user_chat_history(uid: str, chat: List[Dict[str, Any]]):
     except Exception as e:
         st.warning(f"Failed to save chat history: {e}")
 
-# ====== FIXED "START NEW CHAT" BUTTON ======
-with st.sidebar:
-    st.header("⚙️ Controls")
-    if st.button("🔁 Start New Chat"):
-        uid = st.session_state.get("user_uid")
-        if uid:
-            try:
-                # Clear chat history in Firebase
-                ref = db.reference(f"user_chats/{uid}")
-                ref.delete()
-            except Exception as e:
-                st.warning(f"Failed to clear history: {e}")
-        
-        # Clear session state but keep authentication
-        st.session_state.chat = []
-        st.session_state.just_streamed = False
-        st.rerun()
+
 # ====== FIREBASE INIT ======
 if not firebase_admin._apps:
     try:
@@ -150,11 +134,20 @@ st.markdown("Ask me anything about BITS Pilani")
 with st.sidebar:
     st.header("⚙️ Controls")
     if st.button("🔁 Start New Chat"):
-       uid = st.session_state.get("user_uid")
-       if uid:
-        db.collection("user_chats").document(uid).delete()
-       st.session_state.clear()
-       st.rerun()
+        uid = st.session_state.get("user_uid")
+        if uid:
+            try:
+                # Clear chat history in Firebase
+                ref = db.reference(f"user_chats/{uid}")
+                ref.delete()
+            except Exception as e:
+                st.warning(f"Failed to clear history: {e}")
+        
+        # Clear session state but keep authentication
+        st.session_state.chat = []
+        st.session_state.just_streamed = False
+        st.rerun()
+
 
     uploaded_file = st.file_uploader("📄 Upload PDF or image", type=["pdf", "png", "jpg", "jpeg"])
     language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
