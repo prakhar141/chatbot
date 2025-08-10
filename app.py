@@ -38,11 +38,11 @@ SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
 ENABLE_PERSISTENT_CACHE = True
 # ====== FIREBASE INIT ======
 if not firebase_admin._apps:
-    # Load Firebase credentials from Streamlit secrets
-    firebase_config = dict(st.secrets["firebase"])  # Reads from .streamlit/secrets.toml
+    firebase_config = dict(st.secrets["firebase"])
+    # Convert escaped newlines to real newlines (important for PEM format)
+    firebase_config["private_key"] = firebase_config["private_key"].replace("\\n", "\n")
     cred = credentials.Certificate(firebase_config)
     firebase_admin.initialize_app(cred)
-
 # ====== LOGIN SCREEN ======
 def login_screen():
     st.title("🔐 BITS Buddy Login")
