@@ -68,7 +68,7 @@ def login_screen():
             
             st.session_state["user_name"] = name
             st.session_state["authenticated"] = True
-            st.experimental_rerun()
+            st.rerun()
         except Exception as e:
             st.error(f"Authentication failed: {e}")
             return False
