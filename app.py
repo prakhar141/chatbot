@@ -40,12 +40,15 @@ ENABLE_PERSISTENT_CACHE = True
 def load_user_chat_history(uid: str) -> List[Dict[str, Any]]:
     try:
         ref = db.reference(f"user_chats/{uid}")
-        doc = ref.get()
-
-        if doc.exists:
-            return doc.to_dict().get("chat", [])
-        else:
+        snapshot = ref.get()  # This returns None if path doesn't exist
+        
+        if snapshot is None:
             return []
+        
+        # Firebase returns dict directly for the reference
+        if isinstance(snapshot, dict):
+            return snapshot.get("chat", [])
+        return []
     except Exception as e:
         st.warning(f"Failed to load chat history: {e}")
         return []
@@ -53,7 +56,10 @@ def load_user_chat_history(uid: str) -> List[Dict[str, Any]]:
 def save_user_chat_history(uid: str, chat: List[Dict[str, Any]]):
     try:
         ref = db.reference(f"user_chats/{uid}")
-        doc = ref.get()
+        ref.set({
+            "chat": chat,
+            "last_updated": time.time()
+        })
     except Exception as e:
         st.warning(f"Failed to save chat history: {e}")
 
