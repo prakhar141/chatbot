@@ -127,6 +127,7 @@ def main_app():
     # Rest of your existing code goes here...
     # [Keep all your existing code from the original implementation]
     # ========== CONFIG (tweak these models per your OpenRouter access) ==========
+    load_dotenv()
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
     # Tiered models (prefer models you actually can access via OpenRouter)
     MODEL_CHEAP = os.getenv("MODEL_CHEAP") or "deepseek/deepseek-chat-v3-0324:free"        # cheap, good for short tasks
