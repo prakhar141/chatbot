@@ -183,7 +183,7 @@ if "authenticated" in st.session_state and st.session_state["authenticated"]:
             st.markdown(query)
 
         # Bot response
-        bot_reply = get_bot_response(query)
+        bot_reply = modular_rag_smart_answer(context, query, lang=language)["final"]
         st.session_state.chat_history.append({"role": "assistant", "content": bot_reply})
         with st.chat_message("assistant"):
             st.markdown(bot_reply)
