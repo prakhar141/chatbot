@@ -36,6 +36,25 @@ K_VAL = int(os.getenv("K_VAL") or 4)
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
 # Toggle persistent cache
 ENABLE_PERSISTENT_CACHE = True
+def load_user_chat_history(uid: str) -> List[Dict[str, Any]]:
+    try:
+        doc_ref = db.collection("user_chats").document(uid)
+        doc = doc_ref.get()
+        if doc.exists:
+            return doc.to_dict().get("chat", [])
+        else:
+            return []
+    except Exception as e:
+        st.warning(f"Failed to load chat history: {e}")
+        return []
+
+def save_user_chat_history(uid: str, chat: List[Dict[str, Any]]):
+    try:
+        doc_ref = db.collection("user_chats").document(uid)
+        doc_ref.set({"chat": chat})
+    except Exception as e:
+        st.warning(f"Failed to save chat history: {e}")
+
 # ====== FIREBASE INIT ======
 if not firebase_admin._apps:
     firebase_config = dict(st.secrets["firebase"])
@@ -43,6 +62,7 @@ if not firebase_admin._apps:
     firebase_config["private_key"] = firebase_config["private_key"].replace("\\n", "\n")
     cred = credentials.Certificate(firebase_config)
     firebase_admin.initialize_app(cred)
+db = firestore.client()
 # ====== LOGIN SCREEN ======
 def login_screen():
     st.title("🔐 BITS Buddy Login")
@@ -58,21 +78,23 @@ def login_screen():
             return False
         
         try:
-            # Try to get user
-            try:
-                user = auth.get_user_by_email(email)
-                st.success(f"Welcome back, {name}!")
-            except auth.UserNotFoundError:
-                user = auth.create_user(email=email, password=password, display_name=name)
-                st.success(f"Account created! Welcome, {name}!")
-            
-            st.session_state["user_name"] = name
-            st.session_state["authenticated"] = True
-            st.rerun()
-        except Exception as e:
-            st.error(f"Authentication failed: {e}")
-            return False
-    return False
+    # Try to get user
+           try:
+              user = auth.get_user_by_email(email)
+              st.success(f"Welcome back, {name}!")
+           except auth.UserNotFoundError:
+              user = auth.create_user(email=email, password=password, display_name=name)
+              st.success(f"Account created! Welcome, {name}!")
+    
+    # Add this line to store uid
+           st.session_state["user_uid"] = user.uid
+
+           st.session_state["user_name"] = name
+           st.session_state["authenticated"] = True
+           st.rerun()
+   except Exception as e:
+          st.error(f"Authentication failed: {e}")
+          return False
 
 # ====== CHECK AUTH BEFORE LOADING APP ======
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
@@ -88,8 +110,11 @@ st.markdown("Ask me anything about BITS Pilani")
 with st.sidebar:
     st.header("⚙️ Controls")
     if st.button("🔁 Start New Chat"):
-        st.session_state.clear()
-        st.experimental_rerun()
+       uid = st.session_state.get("user_uid")
+       if uid:
+        db.collection("user_chats").document(uid).delete()
+       st.session_state.clear()
+       st.rerun()
 
     uploaded_file = st.file_uploader("📄 Upload PDF or image", type=["pdf", "png", "jpg", "jpeg"])
     language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
@@ -431,11 +456,10 @@ def modular_rag_smart_answer(context: str, question: str, lang: str = "English")
         return {"error": str(e)}
 
 # ========== SESSION INIT ==========
-if "chat" not in st.session_state:
-    st.session_state.chat = []
-if "just_streamed" not in st.session_state:
-    st.session_state.just_streamed = False
-
+if "authenticated" in st.session_state and st.session_state["authenticated"]:
+    if "chat" not in st.session_state:
+        uid = st.session_state.get("user_uid")
+        st.session_state.chat = load_user_chat_history(uid) if uid else []
 # ========== CHAT HANDLER (UI) ==========
 query = st.chat_input("💬 Ask anything about BITS Pilani...")
 if query:
