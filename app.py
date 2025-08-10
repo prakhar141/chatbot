@@ -37,17 +37,19 @@ K_VAL = int(os.getenv("K_VAL") or 4)
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
 # Toggle persistent cache
 ENABLE_PERSISTENT_CACHE = True
+
 def load_user_chat_history(uid: str) -> List[Dict[str, Any]]:
     try:
         ref = db.reference(f"user_chats/{uid}")
-        snapshot = ref.get()  # This returns None if path doesn't exist
+        snapshot = ref.get()
         
+        # Firebase returns None if path doesn't exist
         if snapshot is None:
             return []
         
-        # Firebase returns dict directly for the reference
-        if isinstance(snapshot, dict):
-            return snapshot.get("chat", [])
+        # Firebase returns a dictionary directly
+        if "chat" in snapshot:
+            return snapshot["chat"]
         return []
     except Exception as e:
         st.warning(f"Failed to load chat history: {e}")
@@ -56,13 +58,28 @@ def load_user_chat_history(uid: str) -> List[Dict[str, Any]]:
 def save_user_chat_history(uid: str, chat: List[Dict[str, Any]]):
     try:
         ref = db.reference(f"user_chats/{uid}")
-        ref.set({
-            "chat": chat,
-            "last_updated": time.time()
-        })
+        # Save the entire chat history array
+        ref.set({"chat": chat})
     except Exception as e:
         st.warning(f"Failed to save chat history: {e}")
 
+# ====== FIXED "START NEW CHAT" BUTTON ======
+with st.sidebar:
+    st.header("⚙️ Controls")
+    if st.button("🔁 Start New Chat"):
+        uid = st.session_state.get("user_uid")
+        if uid:
+            try:
+                # Clear chat history in Firebase
+                ref = db.reference(f"user_chats/{uid}")
+                ref.delete()
+            except Exception as e:
+                st.warning(f"Failed to clear history: {e}")
+        
+        # Clear session state but keep authentication
+        st.session_state.chat = []
+        st.session_state.just_streamed = False
+        st.rerun()
 # ====== FIREBASE INIT ======
 if not firebase_admin._apps:
     try:
