@@ -9,4 +9,4 @@ langchain-google-genai
 python-dotenv
 requests
 pillow
-
+firebase-admin
