@@ -122,34 +122,41 @@ def login_screen():
         if not name or not email or not password:
             st.error("Please fill in all fields.")
             return False
-        
+
         try:
-            # Try to get user
+            # Normalize email
+            email = email.strip().lower()
+
             try:
+                # Try to get existing user
                 user = auth.get_user_by_email(email)
-                st.success(f"Welcome back, {name}!")
+                st.success(f"Welcome back, {user.display_name or name}!")
+
                 st.session_state.uid = user.uid
                 st.session_state.chat_history = load_user_chat_history(user.uid)
+
             except auth.UserNotFoundError:
+                # Create a new user
                 user = auth.create_user(
-                       email=email.strip().lower(),
-                       password=password,
-                       display_name=name)
-    st.success(f"Account created! Welcome, {name}!")
+                    email=email,
+                    password=password,
+                    display_name=name
+                )
+                st.success(f"Account created! Welcome, {name}!")
 
-    st.session_state.uid = user.uid
-    st.session_state.chat_history = []  # No previous history yet
-            # Store uid in session state
+                st.session_state.uid = user.uid
+                st.session_state.chat_history = []  # No previous history yet
+
+            # Store additional info in session
             st.session_state["user_uid"] = user.uid
-
             st.session_state["user_name"] = name
             st.session_state["authenticated"] = True
+
             st.rerun()
 
         except Exception as e:
             st.error(f"Authentication failed: {e}")
             return False
-
 # ====== CHECK AUTH BEFORE LOADING APP ======
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
     login_screen()
