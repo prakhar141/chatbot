@@ -14,6 +14,10 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
+import firebase_admin
+from firebase_admin import credentials, auth
+import streamlit as st
+import os
 
 # ========== CONFIG (tweak these models per your OpenRouter access) ==========
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
@@ -32,6 +36,46 @@ K_VAL = int(os.getenv("K_VAL") or 4)
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
 # Toggle persistent cache
 ENABLE_PERSISTENT_CACHE = True
+# ====== FIREBASE INIT ======
+if not firebase_admin._apps:
+    cred = credentials.Certificate("serviceAccountKey.json")  # Downloaded from Firebase
+    firebase_admin.initialize_app(cred)
+
+# ====== LOGIN SCREEN ======
+def login_screen():
+    st.title("🔐 BITS Buddy Login")
+    st.markdown("Please log in to continue")
+
+    name = st.text_input("Full Name")
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login / Sign Up"):
+        if not name or not email or not password:
+            st.error("Please fill in all fields.")
+            return False
+        
+        try:
+            # Try to get user
+            try:
+                user = auth.get_user_by_email(email)
+                st.success(f"Welcome back, {name}!")
+            except auth.UserNotFoundError:
+                user = auth.create_user(email=email, password=password, display_name=name)
+                st.success(f"Account created! Welcome, {name}!")
+            
+            st.session_state["user_name"] = name
+            st.session_state["authenticated"] = True
+            st.experimental_rerun()
+        except Exception as e:
+            st.error(f"Authentication failed: {e}")
+            return False
+    return False
+
+# ====== CHECK AUTH BEFORE LOADING APP ======
+if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
+    login_screen()
+    st.stop()  # Stop execution until login happens
 
 # App UI settings
 st.set_page_config(page_title="BITS Buddy", layout="wide")
