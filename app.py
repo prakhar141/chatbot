@@ -5,38 +5,144 @@ import json
 import sqlite3
 import fitz
 import requests
+import firebase_admin
+from firebase_admin import credentials, auth, exceptions
 from PIL import Image
 import streamlit as st
 from typing import List, Dict, Any, Optional
 
-# LangChain/FAISS imports
-from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.docstore.document import Document
+# Initialize Firebase Admin SDK
+if not firebase_admin._apps:
+    try:
+        # Load Firebase config from environment variables
+        firebase_config = {
+            "type": os.getenv("FIREBASE_TYPE"),
+            "project_id": os.getenv("FIREBASE_PROJECT_ID"),
+            "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
+            "private_key": os.getenv("FIREBASE_PRIVATE_KEY").replace('\\n', '\n'),
+            "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
+            "client_id": os.getenv("FIREBASE_CLIENT_ID"),
+            "auth_uri": os.getenv("FIREBASE_AUTH_URI"),
+            "token_uri": os.getenv("FIREBASE_TOKEN_URI"),
+            "auth_provider_x509_cert_url": os.getenv("FIREBASE_AUTH_PROVIDER_X509_CERT_URL"),
+            "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_X509_CERT_URL"),
+        }
+        
+        cred = credentials.Certificate(firebase_config)
+        firebase_admin.initialize_app(cred)
+    except Exception as e:
+        st.error(f"Firebase initialization failed: {e}")
 
-# ========== CONFIG (tweak these models per your OpenRouter access) ==========
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
-# Tiered models (prefer models you actually can access via OpenRouter)
-MODEL_CHEAP = os.getenv("MODEL_CHEAP") or "deepseek/deepseek-chat-v3-0324:free"        # cheap, good for short tasks
-MODEL_MID = os.getenv("MODEL_MID") or "openai/gpt-oss-20b:free"          # mid-tier for primary/drafts
-MODEL_HIGH = os.getenv("MODEL_HIGH") or "deepseek/deepseek-r1-0528:free"              # high-quality for final answer (may be paid)
-# fallback list in order if model hits quota or returns 429
-MODEL_FALLBACKS = [MODEL_MID, MODEL_CHEAP]
+# ========== FIREBASE AUTH FUNCTIONS ==========
+def firebase_sign_in_with_google():
+    """Render Google Sign-In button and handle authentication"""
+    # Google Sign-In button HTML
+    button_html = f"""
+    <div id="gSignIn"></div>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+        function handleCredentialResponse(response) {{
+            const token = response.credential;
+            window.parent.postMessage({{type: 'firebase_token', token: token}}, '*');
+        }}
+        window.onload = function () {{
+            google.accounts.id.initialize({{
+                client_id: "{os.getenv('GOOGLE_CLIENT_ID')}",
+                callback: handleCredentialResponse,
+                context: "signin"
+            }});
+            google.accounts.id.renderButton(
+                document.getElementById("gSignIn"),
+                {{ 
+                    theme: "outline", 
+                    size: "large",
+                    width: 300,
+                    text: "signin_with",
+                    shape: "rectangular",
+                    logo_alignment: "left"
+                }}
+            );
+        }}
+    </script>
+    """
+    st.components.v1.html(button_html, height=70)
+    
+    # Handle the token when received
+    if 'firebase_token' in st.session_state:
+        token = st.session_state.firebase_token
+        try:
+            # Verify and decode the Firebase token
+            decoded_token = auth.verify_id_token(token)
+            st.session_state.user = {
+                'uid': decoded_token['uid'],
+                'email': decoded_token['email'],
+                'name': decoded_token.get('name', ''),
+                'picture': decoded_token.get('picture', '')
+            }
+            st.experimental_rerun()
+        except (ValueError, exceptions.FirebaseError) as e:
+            st.error(f"Authentication failed: {e}")
 
-# Embedding model for retriever
-EMBED_MODEL = os.getenv("EMBED_MODEL") or "sentence-transformers/all-MiniLM-L6-v2"
-K_VAL = int(os.getenv("K_VAL") or 4)
+def check_user_role(email: str) -> str:
+    """Check if user is authorized based on email domain"""
+    bits_domains = [
+        "@pilani.bits-pilani.ac.in",
+        "@goa.bits-pilani.ac.in",
+        "@hyderabad.bits-pilani.ac.in"
+    ]
+    
+    if any(email.endswith(domain) for domain in bits_domains):
+        return "student"
+    elif "bits-pilani.ac.in" in email:
+        return "faculty"
+    return "unauthorized"
 
-# Persistent cache DB file
-SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
-# Toggle persistent cache
-ENABLE_PERSISTENT_CACHE = True
+# ========== AUTHENTICATION UI ==========
+def show_auth_screen():
+    """Display authentication screen"""
+    st.title("🎓 BITS Buddy - Login")
+    st.markdown("Please sign in with your BITS Pilani Google account")
+    
+    with st.container():
+        firebase_sign_in_with_google()
+    
+    st.markdown("---")
+    st.info("""
+        **Note:** 
+        - Only BITS Pilani email addresses (@pilani.bits-pilani.ac.in, @goa.bits-pilani.ac.in, @hyderabad.bits-pilani.ac.in) are authorized
+        - Your email will be used to verify your BITS affiliation
+    """)
 
-# App UI settings
-st.set_page_config(page_title="BITS Buddy", layout="wide")
-st.title("🎓 BITS Buddy")
-st.markdown("Ask me anything about BITS Pilani")
+# ========== MAIN APP ==========
+def main_app():
+    """Main application after authentication"""
+    # Rest of your existing code goes here...
+    # [Keep all your existing code from the original implementation]
+    # ========== CONFIG (tweak these models per your OpenRouter access) ==========
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
+    # Tiered models (prefer models you actually can access via OpenRouter)
+    MODEL_CHEAP = os.getenv("MODEL_CHEAP") or "deepseek/deepseek-chat-v3-0324:free"        # cheap, good for short tasks
+    MODEL_MID = os.getenv("MODEL_MID") or "openai/gpt-oss-20b:free"          # mid-tier for primary/drafts
+    MODEL_HIGH = os.getenv("MODEL_HIGH") or "deepseek/deepseek-r1-0528:free"              # high-quality for final answer (may be paid)
+    # fallback list in order if model hits quota or returns 429
+    MODEL_FALLBACKS = [MODEL_MID, MODEL_CHEAP]
+
+    # Embedding model for retriever
+    EMBED_MODEL = os.getenv("EMBED_MODEL") or "sentence-transformers/all-MiniLM-L6-v2"
+    K_VAL = int(os.getenv("K_VAL") or 4)
+
+    # Persistent cache DB file
+    SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
+    # Toggle persistent cache
+    ENABLE_PERSISTENT_CACHE = True
+
+    # App UI settings
+    st.set_page_config(page_title="BITS Buddy", layout="wide")
+    st.title("🎓 BITS Buddy")
+    st.markdown(f"Welcome, {st.session_state.user['name']}!")
+    st.markdown("Ask me anything about BITS Pilani")
+
+    # ... [Rest of your existing implementation]
 
 # ========== SIDEBAR ==========
 with st.sidebar:
@@ -481,3 +587,46 @@ st.markdown("""
     <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact Prakhar</a>
 </div>
 """, unsafe_allow_html=True)
+
+
+
+# ========== SESSION STATE MANAGEMENT ==========
+def init_session():
+    """Initialize session state variables"""
+    if 'user' not in st.session_state:
+        st.session_state.user = None
+    if 'chat' not in st.session_state:
+        st.session_state.chat = []
+    if 'just_streamed' not in st.session_state:
+        st.session_state.just_streamed = False
+
+# ========== MAIN EXECUTION ==========
+if __name__ == "__main__":
+    init_session()
+    
+    # Handle token from Google Sign-In
+    query_params = st.experimental_get_query_params()
+    if 'token' in query_params:
+        st.session_state.firebase_token = query_params['token'][0]
+        st.experimental_set_query_params()
+    
+    # Check authentication status
+    if st.session_state.user:
+        # Check user authorization
+        role = check_user_role(st.session_state.user['email'])
+        
+        if role == "unauthorized":
+            st.error("⚠️ Access Denied. Please use a BITS Pilani email address.")
+            st.info("Your email: " + st.session_state.user['email'])
+            if st.button("Sign Out"):
+                st.session_state.clear()
+                st.experimental_rerun()
+        else:
+            if role == "student":
+                st.sidebar.success("🎓 Student Access")
+            elif role == "faculty":
+                st.sidebar.success("👨‍🏫 Faculty Access")
+            
+            main_app()
+    else:
+        show_auth_screen()
