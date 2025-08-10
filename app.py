@@ -59,10 +59,12 @@ def save_user_chat_history(uid: str, chat: List[Dict[str, Any]]):
 # ====== FIREBASE INIT ======
 if not firebase_admin._apps:
     firebase_config = dict(st.secrets["firebase"])
-    # Convert escaped newlines to real newlines (important for PEM format)
     firebase_config["private_key"] = firebase_config["private_key"].replace("\\n", "\n")
     cred = credentials.Certificate(firebase_config)
     firebase_admin.initialize_app(cred)
+else:
+    # If already initialized, get the default app (optional, but safe)
+    firebase_admin.get_app()
 db = firestore.client()
 # ====== LOGIN SCREEN ======
 def login_screen():
