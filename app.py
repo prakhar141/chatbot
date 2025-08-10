@@ -176,7 +176,7 @@ if "authenticated" in st.session_state and st.session_state["authenticated"]:
             st.markdown(msg["content"])
 
     # 2. Chat input
-    if user_input := st.chat_input("Say something..."):
+    if user_input := st.chat_input("Ask me about BITS Pilani anything"):
         # User message
         st.session_state.chat_history.append({"role": "user", "content": user_input})
         with st.chat_message("user"):
@@ -560,7 +560,7 @@ if "authenticated" in st.session_state and st.session_state["authenticated"]:
     if "just_streamed" not in st.session_state:
         st.session_state.just_streamed = False
 # ========== CHAT HANDLER (UI) ==========
-query = st.chat_input("💬 Ask anything about BITS Pilani...")
+
 if query:
     with st.chat_message("assistant"):
         thinking_placeholder = st.empty()
