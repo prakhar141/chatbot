@@ -468,7 +468,7 @@ if st.session_state.just_streamed and len(st.session_state.chat_history) > 0:
 else:
     history_to_show = st.session_state.chat_history
 
-for chat in reversed(history_to_show):
+for chat in (history_to_show):
     with st.chat_message("user" if chat.get("role") == "user" else "assistant"):
         st.markdown(chat.get("content", ""))
 
