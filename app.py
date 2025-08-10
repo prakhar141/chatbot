@@ -180,7 +180,7 @@ if "authenticated" in st.session_state and st.session_state["authenticated"]:
         # User message
         st.session_state.chat_history.append({"role": "user", "content": query})
         with st.chat_message("user"):
-            st.markdown(user_input)
+            st.markdown(query)
 
         # Bot response
         bot_reply = get_bot_response(query)
