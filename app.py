@@ -11,6 +11,9 @@ from PIL import Image
 import streamlit as st
 from typing import List, Dict, Any, Optional
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+import os
+from dotenv import load_dotenv
+
 # ====== CONFIG ======
 ENABLE_PERSISTENT_CACHE = True
 SQLITE_DB_PATH = "cache.db"
