@@ -176,14 +176,14 @@ if "authenticated" in st.session_state and st.session_state["authenticated"]:
             st.markdown(msg["content"])
 
     # 2. Chat input
-    if user_input := st.chat_input("Ask me about BITS Pilani anything"):
+    if query := st.chat_input("Ask me about BITS Pilani anything"):
         # User message
-        st.session_state.chat_history.append({"role": "user", "content": user_input})
+        st.session_state.chat_history.append({"role": "user", "content": query})
         with st.chat_message("user"):
             st.markdown(user_input)
 
         # Bot response
-        bot_reply = get_bot_response(user_input)
+        bot_reply = get_bot_response(query)
         st.session_state.chat_history.append({"role": "assistant", "content": bot_reply})
         with st.chat_message("assistant"):
             st.markdown(bot_reply)
