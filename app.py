@@ -388,10 +388,6 @@ else:
 # ----------------- Main chat handler (single unified flow) -----------------
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
-# Display previous messages
-for msg in st.session_state.chat_history:
-    with st.chat_message(msg.get("role", "assistant")):
-        st.markdown(msg.get("content", ""))
 
 # Chat input - single place that drives everything
 if user_query := st.chat_input("Ask me about BITS Pilani anything"):
