@@ -78,23 +78,24 @@ def login_screen():
             return False
         
         try:
-    # Try to get user
-           try:
-              user = auth.get_user_by_email(email)
-              st.success(f"Welcome back, {name}!")
-           except auth.UserNotFoundError:
-              user = auth.create_user(email=email, password=password, display_name=name)
-              st.success(f"Account created! Welcome, {name}!")
-    
-    # Add this line to store uid
-           st.session_state["user_uid"] = user.uid
+            # Try to get user
+            try:
+                user = auth.get_user_by_email(email)
+                st.success(f"Welcome back, {name}!")
+            except auth.UserNotFoundError:
+                user = auth.create_user(email=email, password=password, display_name=name)
+                st.success(f"Account created! Welcome, {name}!")
 
-           st.session_state["user_name"] = name
-           st.session_state["authenticated"] = True
-           st.rerun()
-     except Exception as e:
-           st.error(f"Authentication failed: {e}")
-           return False
+            # Store uid in session state
+            st.session_state["user_uid"] = user.uid
+
+            st.session_state["user_name"] = name
+            st.session_state["authenticated"] = True
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"Authentication failed: {e}")
+            return False
 
 # ====== CHECK AUTH BEFORE LOADING APP ======
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
