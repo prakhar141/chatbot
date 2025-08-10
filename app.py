@@ -37,31 +37,54 @@ K_VAL = int(os.getenv("K_VAL") or 4)
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
 # Toggle persistent cache
 ENABLE_PERSISTENT_CACHE = True
-
 def load_user_chat_history(uid: str) -> List[Dict[str, Any]]:
+    """
+    Load a user's chat history from Firebase Realtime Database.
+
+    Args:
+        uid (str): Firebase UID of the user.
+
+    Returns:
+        List[Dict[str, Any]]: List of chat messages (role/content dicts).
+    """
     try:
         ref = db.reference(f"user_chats/{uid}")
         snapshot = ref.get()
-        
-        # Firebase returns None if path doesn't exist
-        if snapshot is None:
+
+        if not snapshot:
             return []
+
+        chat_data = snapshot.get("chat")
+        if isinstance(chat_data, list):
+            return chat_data
         
-        # Firebase returns a dictionary directly
-        if "chat" in snapshot:
-            return snapshot["chat"]
-        return []
-    except Exception as e:
-        st.warning(f"Failed to load chat history: {e}")
+        # If structure is not as expected, return empty list
+        st.warning(f"Unexpected chat format for UID {uid}, resetting history.")
         return []
 
-def save_user_chat_history(uid: str, chat: List[Dict[str, Any]]):
+    except Exception as e:
+        st.error(f"Failed to load chat history for UID {uid}: {e}")
+        return []
+
+
+def save_user_chat_history(uid: str, chat: List[Dict[str, Any]]) -> bool:
+    """
+    Save a user's entire chat history to Firebase Realtime Database.
+
+    Args:
+        uid (str): Firebase UID of the user.
+        chat (List[Dict[str, Any]]): Full list of chat messages.
+
+    Returns:
+        bool: True if saved successfully, False otherwise.
+    """
     try:
         ref = db.reference(f"user_chats/{uid}")
-        # Save the entire chat history array
         ref.set({"chat": chat})
+        return True
     except Exception as e:
-        st.warning(f"Failed to save chat history: {e}")
+        st.error(f"Failed to save chat history for UID {uid}: {e}")
+        return False
 
 
 # ====== FIREBASE INIT ======
@@ -105,10 +128,17 @@ def login_screen():
             try:
                 user = auth.get_user_by_email(email)
                 st.success(f"Welcome back, {name}!")
+                st.session_state.uid = user.uid
+                st.session_state.chat_history = load_user_chat_history(user.uid)
             except auth.UserNotFoundError:
-                user = auth.create_user(email=email, password=password, display_name=name)
-                st.success(f"Account created! Welcome, {name}!")
+                user = auth.create_user(
+                       email=email.strip().lower(),
+                       password=password,
+                       display_name=name)
+    st.success(f"Account created! Welcome, {name}!")
 
+    st.session_state.uid = user.uid
+    st.session_state.chat_history = []  # No previous history yet
             # Store uid in session state
             st.session_state["user_uid"] = user.uid
 
