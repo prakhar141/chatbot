@@ -392,7 +392,6 @@ st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
 # Chat input - single place that drives everything
 # ✅ Add in your sidebar (earlier in code, inside `with st.sidebar:`)
-deep_think_mode = st.checkbox("🧠 Deep Think Mode", value=False)
 
 # ----------------- Main chat handler -----------------
 if user_query := st.chat_input("Ask me about BITS Pilani anything"):
