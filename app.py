@@ -94,7 +94,6 @@ with st.sidebar:
         st.session_state.just_streamed = False
         st.rerun()
 
-    uploaded_file = st.file_uploader("📄 Upload PDF or image", type=["pdf", "png", "jpg", "jpeg"])
     language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
     st.markdown("---")
     st.checkbox("Fast loading", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
@@ -185,33 +184,6 @@ def load_vector_db(folder="."):
     return vectordb.as_retriever(search_type="similarity", k=K_VAL)
 
 retriever = load_vector_db()
-
-# ----------------- File uploads handling -----------------
-uploaded_content = ""
-if 'uploaded_content' not in st.session_state:
-    st.session_state.uploaded_content = ""
-
-if uploaded_file:
-    file_type = uploaded_file.type
-    if file_type == "application/pdf":
-        try:
-            with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
-                uploaded_content = "\n".join(page.get_text() for page in doc)
-                st.session_state.uploaded_content = uploaded_content
-        except Exception as e:
-            st.warning(f"PDF read error: {e}")
-    elif "image" in file_type:
-        try:
-            img = Image.open(uploaded_file)
-            st.session_state.uploaded_content = "[Image content; enable OCR to extract text]"
-        except Exception as e:
-            st.warning(f"Image read error: {e}")
-
-    if st.session_state.uploaded_content and st.session_state.uploaded_content.strip():
-        st.success("✅ Extracted content from file.")
-        st.text_area("📄 Preview (first 1000 chars)", st.session_state.uploaded_content[:1000], height=200)
-    else:
-        st.warning("⚠️ Couldn't extract readable text from the file.")
 
 # ----------------- OpenRouter helpers (unchanged) -----------------
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -389,24 +361,56 @@ else:
 # ----------------- Main chat handler (single unified flow) -----------------
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
+# ----------------- Chat input with + button for file uploads -----------------
+st.write("### Ask me about BITS Pilani anything")
 
-# Chat input - single place that drives everything
-# ✅ Add in your sidebar (earlier in code, inside `with st.sidebar:`)
+# Use columns to place input and + button side by side
+col1, col2 = st.columns([8, 1])  # input box wider, + button narrower
 
-# ----------------- Main chat handler -----------------
-if user_query := st.chat_input("Ask me about BITS Pilani anything"):
-    query = user_query.strip()
-    if not query:
+with col1:
+    user_query = st.text_input("", key="chat_input", placeholder="Type your question here...")
+
+with col2:
+    upload_clicked = st.button("➕", key="upload_plus")  # plus button
+
+# Handle file upload popup when + is clicked
+if upload_clicked:
+    uploaded_file = st.file_uploader("Upload PDF or Image", type=["pdf", "png", "jpg", "jpeg"])
+    if uploaded_file:
+        file_type = uploaded_file.type
+        if file_type == "application/pdf":
+            try:
+                with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
+                    uploaded_content = "\n".join(page.get_text() for page in doc)
+                    st.session_state.uploaded_content = uploaded_content
+            except Exception as e:
+                st.warning(f"PDF read error: {e}")
+        elif "image" in file_type:
+            try:
+                img = Image.open(uploaded_file)
+                st.session_state.uploaded_content = "[Image content; enable OCR to extract text]"
+            except Exception as e:
+                st.warning(f"Image read error: {e}")
+
+        if st.session_state.uploaded_content and st.session_state.uploaded_content.strip():
+            st.success("✅ Extracted content from file.")
+            st.text_area("📄 Preview (first 1000 chars)", st.session_state.uploaded_content[:1000], height=200)
+        else:
+            st.warning("⚠️ Couldn't extract readable text from the file.")
+
+# ----------------- Handle chat submission -----------------
+if user_query := user_query.strip():
+    if not user_query:
         st.warning("Please type a question.")
     else:
         # Save user message
-        st.session_state.chat_history.append({"role": "user", "content": query})
+        st.session_state.chat_history.append({"role": "user", "content": user_query})
         with st.chat_message("user"):
-            st.markdown(query)
+            st.markdown(user_query)
 
         # Build context
         try:
-            docs = retriever.get_relevant_documents(query)
+            docs = retriever.get_relevant_documents(user_query)
             context = "\n".join([doc.page_content for doc in docs]) if docs else (st.session_state.get("uploaded_content", "") or "")
         except Exception as e:
             context = st.session_state.get("uploaded_content", "") or ""
@@ -418,7 +422,7 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
             try:
                 if deep_think_mode:
                     # ==================== DEEP THINK PIPELINE ====================
-                    thinking_prompt = build_thinking_prompt(query, context)
+                    thinking_prompt = build_thinking_prompt(user_query, context)
                     thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
 
                     # Animate "thinking"
@@ -432,10 +436,10 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                     time.sleep(0.25)
                     thinking_placeholder.markdown("🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
 
-                    rag_result = modular_rag_smart_answer(context, query, lang=language)
+                    rag_result = modular_rag_smart_answer(context, user_query, lang=language)
 
                     chat_record = {
-                        "question": query,
+                        "question": user_query,
                         "thinking": rag_result.get("thinking", ""),
                         "primary": rag_result.get("primary", ""),
                         "critique": rag_result.get("critique", ""),
@@ -452,10 +456,10 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                 else:
                     # ==================== VANILLA RAG ====================
                     thinking_placeholder.markdown("⚡Quick Answer...")
-                    vanilla_prompt = build_primary_prompt(context, query, lang=language)
+                    vanilla_prompt = build_primary_prompt(context, user_query, lang=language)
                     final_answer = query_models_with_fallbacks([MODEL_MID] + MODEL_FALLBACKS, vanilla_prompt)
                     chat_record = {
-                        "question": query,
+                        "question": user_query,
                         "thinking": "",
                         "primary": final_answer,
                         "critique": "",
@@ -497,6 +501,33 @@ for chat in (history_to_show):
 
 if st.session_state.just_streamed:
     st.session_state.just_streamed = False
+# ----------------- File uploads handling -----------------
+uploaded_content = ""
+if 'uploaded_content' not in st.session_state:
+    st.session_state.uploaded_content = ""
+
+if uploaded_file:
+    file_type = uploaded_file.type
+    if file_type == "application/pdf":
+        try:
+            with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
+                uploaded_content = "\n".join(page.get_text() for page in doc)
+                st.session_state.uploaded_content = uploaded_content
+        except Exception as e:
+            st.warning(f"PDF read error: {e}")
+    elif "image" in file_type:
+        try:
+            img = Image.open(uploaded_file)
+            st.session_state.uploaded_content = "[Image content; enable OCR to extract text]"
+        except Exception as e:
+            st.warning(f"Image read error: {e}")
+
+    if st.session_state.uploaded_content and st.session_state.uploaded_content.strip():
+        st.success("✅ Extracted content from file.")
+        st.text_area("📄 Preview (first 1000 chars)", st.session_state.uploaded_content[:1000], height=200)
+    else:
+        st.warning("⚠️ Couldn't extract readable text from the file.")
+
 
 # ----------------- Sidebar history preview -----------------
 with st.sidebar:
