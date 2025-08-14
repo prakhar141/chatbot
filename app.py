@@ -97,7 +97,7 @@ with st.sidebar:
     uploaded_file = st.file_uploader("📄 Upload PDF or image", type=["pdf", "png", "jpg", "jpeg"])
     language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
     st.markdown("---")
-    st.checkbox("Enable Persistent SQLite Cache", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
+    st.checkbox("Fast loading", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
 
 # ----------------- SQLITE CACHE -----------------
 def init_sqlite(db_path: str = SQLITE_DB_PATH):
