@@ -81,6 +81,7 @@ st.markdown("Ask me anything about BITS Pilani")
 
 with st.sidebar:
     st.header("⚙️ Controls")
+    deep_think_mode = st.checkbox("🧠 Deep Think Mode", value=False)
     if st.button("🔁 Start New Chat"):
         uid = st.session_state.get("user_uid")
         if uid:
@@ -390,17 +391,21 @@ st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
 
 # Chat input - single place that drives everything
+# ✅ Add in your sidebar (earlier in code, inside `with st.sidebar:`)
+deep_think_mode = st.checkbox("🧠 Deep Think Mode", value=False)
+
+# ----------------- Main chat handler -----------------
 if user_query := st.chat_input("Ask me about BITS Pilani anything"):
     query = user_query.strip()
     if not query:
         st.warning("Please type a question.")
     else:
-        # Append user message to history and show it
+        # Save user message
         st.session_state.chat_history.append({"role": "user", "content": query})
         with st.chat_message("user"):
             st.markdown(query)
 
-        # Build context from retriever and uploaded content (always do this before calling the RAG pipeline)
+        # Build context
         try:
             docs = retriever.get_relevant_documents(query)
             context = "\n".join([doc.page_content for doc in docs]) if docs else (st.session_state.get("uploaded_content", "") or "")
@@ -408,49 +413,69 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
             context = st.session_state.get("uploaded_content", "") or ""
             st.warning(f"Retriever failed: {e}")
 
-        # Thinking + RAG
         with st.chat_message("assistant"):
             thinking_placeholder = st.empty()
+
             try:
-                # thinking monologue (cheap)
-                thinking_prompt = build_thinking_prompt(query, context)
-                thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
-                animated = ""
-                for ch in thinking_text:
-                    animated += ch
-                    thinking_placeholder.markdown(f"**Thinking:** {animated}|")
-                    time.sleep(0.01)
-                thinking_placeholder.markdown(f"**Thinking:** {animated}")
+                if deep_think_mode:
+                    # ==================== DEEP THINK PIPELINE ====================
+                    thinking_prompt = build_thinking_prompt(query, context)
+                    thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
 
-                time.sleep(0.25)
-                thinking_placeholder.markdown("🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
-
-                rag_result = modular_rag_smart_answer(context, query, lang=language)
-
-                chat_record = {
-                    "question": query,
-                    "thinking": rag_result.get("thinking", ""),
-                    "primary": rag_result.get("primary", ""),
-                    "critique": rag_result.get("critique", ""),
-                    "final": rag_result.get("final", rag_result.get("error", "Sorry — something went wrong.")),
-                    "language": language
-                }
-
-                if "error" in rag_result:
-                    thinking_placeholder.markdown(f"❌ Error while generating answer: {rag_result['error']}")
-                else:
-                    final_answer = chat_record["final"]
+                    # Animate "thinking"
                     animated = ""
-                    for c in final_answer:
-                        animated += c
-                        thinking_placeholder.markdown(animated + "|")
-                        time.sleep(0.004)
-                    thinking_placeholder.markdown(animated)
+                    for ch in thinking_text:
+                        animated += ch
+                        thinking_placeholder.markdown(f"**Thinking:** {animated}|")
+                        time.sleep(0.01)
+                    thinking_placeholder.markdown(f"**Thinking:** {animated}")
 
+                    time.sleep(0.25)
+                    thinking_placeholder.markdown("🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
+
+                    rag_result = modular_rag_smart_answer(context, query, lang=language)
+
+                    chat_record = {
+                        "question": query,
+                        "thinking": rag_result.get("thinking", ""),
+                        "primary": rag_result.get("primary", ""),
+                        "critique": rag_result.get("critique", ""),
+                        "final": rag_result.get("final", rag_result.get("error", "Sorry — something went wrong.")),
+                        "language": language
+                    }
+
+                    if "error" in rag_result:
+                        thinking_placeholder.markdown(f"❌ Error while generating answer: {rag_result['error']}")
+                        final_answer = rag_result["error"]
+                    else:
+                        final_answer = chat_record["final"]
+
+                else:
+                    # ==================== VANILLA RAG ====================
+                    thinking_placeholder.markdown("⚡Quick Answer...")
+                    vanilla_prompt = build_primary_prompt(context, query, lang=language)
+                    final_answer = query_models_with_fallbacks([MODEL_MID] + MODEL_FALLBACKS, vanilla_prompt)
+                    chat_record = {
+                        "question": query,
+                        "thinking": "",
+                        "primary": final_answer,
+                        "critique": "",
+                        "final": final_answer,
+                        "language": language
+                    }
+
+                # Animate final answer
+                animated = ""
+                for c in final_answer:
+                    animated += c
+                    thinking_placeholder.markdown(animated + "|")
+                    time.sleep(0.004)
+                thinking_placeholder.markdown(animated)
+
+                # Save chat history
                 st.session_state.chat_history.append({"role": "assistant", "content": chat_record["final"]})
                 st.session_state.just_streamed = True
 
-                # Save to Firebase
                 if "uid" in st.session_state:
                     save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
 
@@ -461,7 +486,6 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                     "content": f"Error: {e}"
                 })
                 st.session_state.just_streamed = True
-
 # ----------------- Display chat history (non-streamed older messages) -----------------
 if st.session_state.just_streamed and len(st.session_state.chat_history) > 0:
     history_to_show = st.session_state.chat_history[:-1]
