@@ -79,8 +79,7 @@ st.set_page_config(page_title="BITS Buddy", layout="wide")
 st.markdown(
     """
     <div style="display: flex; align-items: center;">
-        <img src="https://www.bits-pilani.ac.in/wp-content/uploads/BITS-Pilani-Logo.png" 
-             alt="BITS Pilani Logo" style="height:50px; margin-right: 10px;">
+        <img src="logo.png" alt="BITS Pilani Logo" style="height:50px; margin-right: 10px;">
         <h1 style="margin: 0;">BITS Buddy</h1>
     </div>
     """,
