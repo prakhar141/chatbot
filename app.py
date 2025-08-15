@@ -364,15 +364,14 @@ st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 # ----------------- Chat input with + button for file uploads -----------------
 
 
-# Use columns to place input and + button side by side
-col1, col2 = st.columns([8, 1])  # input box wider, + button narrower
+# Place + button on the left and text input on the right
+col1, col2 = st.columns([1, 8])  # button narrower, input wider
 
 with col1:
-    user_query = st.text_input("", key="chat_input", placeholder="Type your question here...")
+    upload_clicked = st.button("➕", key="upload_plus")  # plus button on left
 
 with col2:
-    upload_clicked = st.button("➕", key="upload_plus")  # plus button
-
+    user_query = st.text_input("", key="chat_input", placeholder="Type your question here...")
 # Handle file upload popup when + is clicked
 if upload_clicked:
     uploaded_file = st.file_uploader("Upload PDF or Image", type=["pdf", "png", "jpg", "jpeg"])
