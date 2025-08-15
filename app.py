@@ -26,7 +26,7 @@ K_VAL = int(os.getenv("K_VAL") or 4)
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
 ENABLE_PERSISTENT_CACHE = True
 
-# ================= FIREBASE =================
+
 # ================= FIREBASE =================
 if not firebase_admin._apps:
     try:
@@ -43,32 +43,33 @@ else:
 
 realtime_db = db.reference('/')
 
-# ================= AUTHENTICATION =================
+# ================= AUTHENTICATION (Passwordless) =================
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
     st.title("🔐 BITS Buddy Login")
-    st.markdown("Please log in to continue")
-    
+    st.markdown("Enter your name and email to continue (password not required)")
+
     name = st.text_input("Full Name")
     email = st.text_input("Email")
-    password = st.text_input("Password", type="password")
 
     if st.button("Login / Sign Up"):
-        if not name or not email or not password:
+        if not name or not email:
             st.error("Please fill in all fields.")
         else:
             email_norm = email.strip().lower()
             try:
                 try:
+                    # Try to get existing user
                     user = auth.get_user_by_email(email_norm)
                     st.success(f"Welcome back, {user.display_name or name}!")
-                    st.session_state.uid = user.uid
                     st.session_state.chat_history = []  # load from DB if needed
                 except auth.UserNotFoundError:
-                    user = auth.create_user(email=email_norm, password=password, display_name=name)
+                    # Create a new user with a random password
+                    import secrets
+                    random_password = secrets.token_urlsafe(16)
+                    user = auth.create_user(email=email_norm, password=random_password, display_name=name)
                     st.success(f"Account created! Welcome, {name}!")
-                    st.session_state.uid = user.uid
                     st.session_state.chat_history = []
-                
+
                 st.session_state["user_uid"] = user.uid
                 st.session_state["user_name"] = name
                 st.session_state["authenticated"] = True
