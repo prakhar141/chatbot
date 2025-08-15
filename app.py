@@ -76,15 +76,13 @@ realtime_db = db.reference('/')
 
 # ----------------- Streamlit page & sidebar -----------------
 st.set_page_config(page_title="BITS Buddy", layout="wide")
-st.markdown(
-    """
-    <div style="display: flex; align-items: center;">
-        <img src="logo.png" alt="BITS Pilani Logo" style="height:50px; margin-right: 10px;">
-        <h1 style="margin: 0;">BITS Buddy</h1>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+col1, col2 = st.columns([1, 8])  # Adjust ratio as needed
+
+with col1:
+    st.image("bits_logo.png", width=50)
+
+with col2:
+    st.markdown("<h1 style='margin-top: 0;'>BITS Buddy</h1>", unsafe_allow_html=True)
 
 st.markdown("Ask me anything about BITS Pilani")
 
