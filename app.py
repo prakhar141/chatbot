@@ -94,9 +94,9 @@ with st.sidebar:
         st.rerun()
 
     language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
-    use_advanced_rag = st.checkbox("Use Advanced Self-Critique RAG", value=True, key="use_advanced_rag")
+    use_advanced_rag = st.checkbox("Take time and think Deep", value=True, key="use_advanced_rag")
     st.markdown("---")
-    st.checkbox("Enable Persistent SQLite Cache", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
+    st.checkbox("For Faster Loading", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
 
 # ----------------- SQLITE CACHE -----------------
 def init_sqlite(db_path: str = SQLITE_DB_PATH):
