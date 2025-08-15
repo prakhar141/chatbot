@@ -7,7 +7,7 @@ import hashlib
 import fitz
 import requests
 import streamlit as st
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional
 
 # LangChain / FAISS imports
 from langchain_community.vectorstores import FAISS
@@ -25,7 +25,6 @@ EMBED_MODEL = os.getenv("EMBED_MODEL") or "sentence-transformers/all-MiniLM-L6-v
 K_VAL = int(os.getenv("K_VAL") or 4)
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
 ENABLE_PERSISTENT_CACHE = True
-
 
 # ================= FIREBASE =================
 if not firebase_admin._apps:
@@ -58,12 +57,10 @@ if "authenticated" not in st.session_state or not st.session_state["authenticate
             email_norm = email.strip().lower()
             try:
                 try:
-                    # Try to get existing user
                     user = auth.get_user_by_email(email_norm)
                     st.success(f"Welcome back, {user.display_name or name}!")
-                    st.session_state.chat_history = []  # load from DB if needed
+                    st.session_state.chat_history = []
                 except auth.UserNotFoundError:
-                    # Create a new user with a random password
                     import secrets
                     random_password = secrets.token_urlsafe(16)
                     user = auth.create_user(email=email_norm, password=random_password, display_name=name)
@@ -81,8 +78,6 @@ if "authenticated" not in st.session_state or not st.session_state["authenticate
 # ================= CHAT APP STARTS HERE =================
 st.set_page_config(page_title="BITS Buddy", layout="wide")
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
-
-
 
 # ================= SQLITE CACHE =================
 def init_sqlite(db_path: str = SQLITE_DB_PATH):
@@ -195,30 +190,19 @@ def query_openrouter(model: str, messages: List[Dict[str, str]]) -> str:
     return content
 
 # ================= PROMPTS =================
-def build_primary_prompt(context: str, question: str, lang: str) -> List[Dict[str, str]]:
+def build_primary_prompt(context: str, question: str) -> List[Dict[str, str]]:
     return [
-        {"role": "system", "content": f"You are BitsBuddy, a BITSian senior. Answer in {lang}. Use emojis, be concise and helpful."},
+        {"role": "system", "content": "You are BitsBuddy, a BITSian senior. Answer concisely and helpfully with emojis."},
         {"role": "user", "content": f"Question: {question}\nContext:\n{context}"}
     ]
 
-# ================= STREAMLIT APP =================
-st.set_page_config(page_title="BITS Buddy", layout="wide")
-st.title("🎓 BITS Buddy")
-
-with st.sidebar:
-    st.header("⚙️ Controls")
-    language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
-
-# ================= AUTHENTICATION =================
+# ================= AUTHENTICATION CHECK =================
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
-    st.warning("Authentication required. Implement your login screen here.")
+    st.warning("Authentication required.")
     st.stop()
 
 if "chat_history" not in st.session_state:
-    uid = st.session_state.get("user_uid")
     st.session_state.chat_history = []
-
-
 
 # ================= CHAT HANDLER WITH TYPING ANIMATION =================
 user_query = st.text_input("", key="chat_input", placeholder="Type your question here...").strip()
@@ -227,33 +211,33 @@ if user_query:
     with st.chat_message("user"):
         st.markdown(user_query)
 
-    # Placeholder for assistant's response
     assistant_placeholder = st.empty()
-    assistant_placeholder.markdown("⏳ I am preparing for you...")  # interim message
+    assistant_placeholder.markdown("⏳ I am preparing your answer...")
 
-    # Get context
     try:
         docs = retriever.get_relevant_documents(user_query)
         context = "\n".join([doc.page_content for doc in docs]) if docs else ""
-    except Exception as e:
+    except:
         context = ""
-        st.warning(f"Retriever failed: {e}")
 
-    prompt = build_primary_prompt(context, user_query, language)
+    prompt = build_primary_prompt(context, user_query)
 
-    # Query the model
     try:
         answer = query_openrouter(MODEL_MID, prompt)
     except Exception as e:
         answer = f"❌ Error generating answer: {e}"
 
-    # Animate typing character by character
+    # Typing animation
     animated_text = ""
     for c in answer:
         animated_text += c
-        assistant_placeholder.markdown(animated_text + "▌")  # ▌ is a blinking cursor-like symbol
-        time.sleep(0.02)  # adjust speed here
-    assistant_placeholder.markdown(answer)  # final clean answer
+        assistant_placeholder.markdown(animated_text + "▌")
+        time.sleep(0.02)
+    assistant_placeholder.markdown(answer)
 
-    # Save to chat history
     st.session_state.chat_history.append({"role": "assistant", "content": answer})
+
+# ================= DISPLAY CHAT HISTORY =================
+for chat in st.session_state.chat_history:
+    with st.chat_message("user" if chat["role"] == "user" else "assistant"):
+        st.markdown(chat["content"])
