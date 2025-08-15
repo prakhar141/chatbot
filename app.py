@@ -362,7 +362,7 @@ else:
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
 # ----------------- Chat input with + button for file uploads -----------------
-st.write("### Ask me about BITS Pilani anything")
+
 
 # Use columns to place input and + button side by side
 col1, col2 = st.columns([8, 1])  # input box wider, + button narrower
