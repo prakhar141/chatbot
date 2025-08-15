@@ -247,10 +247,7 @@ if user_query:
 
     st.session_state.chat_history.append({"role": "assistant", "content": answer})
 
-# ================= DISPLAY CHAT HISTORY =================
-for chat in st.session_state.chat_history:
-    with st.chat_message("user" if chat["role"] == "user" else "assistant"):
-        st.markdown(chat["content"])
+
 
 # ================= PAGE FOOTER =================
 st.markdown(
