@@ -362,33 +362,38 @@ else:
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
 # ----------------- Chat input with + button for file uploads -----------------
+import streamlit as st
+
 st.markdown("""
 <style>
-.button-container button {
-    height: 38px;  /* match input box height */
-    padding: 0 12px;
-    margin-top: 0;
-    vertical-align: middle;
+/* Container for button and input */
+.flex-container {
+    display: flex;
+    align-items: center;  /* vertically center */
+    gap: 8px;             /* space between button and input */
 }
-.text-input-container input {
+
+/* Style the button */
+.flex-container button {
     height: 38px;
+    padding: 0 12px;
+}
+
+/* Style the input */
+.flex-container input {
+    height: 38px;
+    flex-grow: 1;          /* input takes remaining width */
 }
 </style>
 """, unsafe_allow_html=True)
 
-# Columns for + button and input
-col1, col2 = st.columns([1, 8])
+st.markdown('<div class="flex-container">', unsafe_allow_html=True)
 
-with col1:
-    # Wrap button in a div for CSS targeting
-    st.markdown('<div class="button-container">', unsafe_allow_html=True)
-    upload_clicked = st.button("➕", key="upload_plus")
-    st.markdown('</div>', unsafe_allow_html=True)
+upload_clicked = st.button("➕", key="upload_plus")
+user_query = st.text_input("", key="chat_input", placeholder="Type your question here...")
 
-with col2:
-    st.markdown('<div class="text-input-container">', unsafe_allow_html=True)
-    user_query = st.text_input("", key="chat_input", placeholder="Type your question here...")
-    st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
+
 # Handle file upload popup when + is clicked
 if upload_clicked:
     uploaded_file = st.file_uploader("Upload PDF or Image", type=["pdf", "png", "jpg", "jpeg"])
