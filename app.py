@@ -476,6 +476,7 @@ if st.session_state.just_streamed:
     st.session_state.just_streamed = False
 
 # ----------------- Sidebar history preview -----------------
+"""
 with st.sidebar:
     st.subheader("📂 Chat History")
     
@@ -495,6 +496,7 @@ with st.sidebar:
         else:
             st.markdown(f"**A{i+1}:** {preview}")
         st.markdown("---")
+""" 
 
 # ----------------- Footer -----------------
 st.markdown("""
