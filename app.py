@@ -79,6 +79,8 @@ if "authenticated" not in st.session_state or not st.session_state["authenticate
 st.set_page_config(page_title="BITS Buddy", layout="wide")
 # ================= PAGE HEADER =================
 
+import streamlit as st
+
 st.markdown(
     """
     <div style="display: flex; border-radius: 10px; overflow: hidden; box-shadow: 2px 2px 10px rgba(0,0,0,0.3);">
@@ -89,9 +91,9 @@ st.markdown(
             Buddy
         </div>
         <div style="background-color: #FF0000; flex: 1; padding: 20px; text-align: center; color: white; font-size: 32px; font-weight: bold;">
-            
+            🚀
         </div>
-   
+    </div>
     """,
     unsafe_allow_html=True
 )
