@@ -501,32 +501,6 @@ for chat in (history_to_show):
 
 if st.session_state.just_streamed:
     st.session_state.just_streamed = False
-# ----------------- File uploads handling -----------------
-uploaded_content = ""
-if 'uploaded_content' not in st.session_state:
-    st.session_state.uploaded_content = ""
-
-if uploaded_file:
-    file_type = uploaded_file.type
-    if file_type == "application/pdf":
-        try:
-            with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
-                uploaded_content = "\n".join(page.get_text() for page in doc)
-                st.session_state.uploaded_content = uploaded_content
-        except Exception as e:
-            st.warning(f"PDF read error: {e}")
-    elif "image" in file_type:
-        try:
-            img = Image.open(uploaded_file)
-            st.session_state.uploaded_content = "[Image content; enable OCR to extract text]"
-        except Exception as e:
-            st.warning(f"Image read error: {e}")
-
-    if st.session_state.uploaded_content and st.session_state.uploaded_content.strip():
-        st.success("✅ Extracted content from file.")
-        st.text_area("📄 Preview (first 1000 chars)", st.session_state.uploaded_content[:1000], height=200)
-    else:
-        st.warning("⚠️ Couldn't extract readable text from the file.")
 
 
 # ----------------- Sidebar history preview -----------------
