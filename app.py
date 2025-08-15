@@ -218,28 +218,42 @@ if "chat_history" not in st.session_state:
     uid = st.session_state.get("user_uid")
     st.session_state.chat_history = []
 
-# ================= CHAT HANDLER =================
+
+
+# ================= CHAT HANDLER WITH TYPING ANIMATION =================
 user_query = st.text_input("", key="chat_input", placeholder="Type your question here...").strip()
 if user_query:
     st.session_state.chat_history.append({"role": "user", "content": user_query})
     with st.chat_message("user"):
         st.markdown(user_query)
 
+    # Placeholder for assistant's response
+    assistant_placeholder = st.empty()
+    assistant_placeholder.markdown("⏳ I am preparing for you...")  # interim message
+
     # Get context
     try:
         docs = retriever.get_relevant_documents(user_query)
         context = "\n".join([doc.page_content for doc in docs]) if docs else ""
-    except:
+    except Exception as e:
         context = ""
+        st.warning(f"Retriever failed: {e}")
 
     prompt = build_primary_prompt(context, user_query, language)
-    answer = query_openrouter(MODEL_MID, prompt)
 
+    # Query the model
+    try:
+        answer = query_openrouter(MODEL_MID, prompt)
+    except Exception as e:
+        answer = f"❌ Error generating answer: {e}"
+
+    # Animate typing character by character
+    animated_text = ""
+    for c in answer:
+        animated_text += c
+        assistant_placeholder.markdown(animated_text + "▌")  # ▌ is a blinking cursor-like symbol
+        time.sleep(0.02)  # adjust speed here
+    assistant_placeholder.markdown(answer)  # final clean answer
+
+    # Save to chat history
     st.session_state.chat_history.append({"role": "assistant", "content": answer})
-    with st.chat_message("assistant"):
-        st.markdown(answer)
-
-# ================= DISPLAY CHAT HISTORY =================
-for chat in st.session_state.chat_history:
-    with st.chat_message("user" if chat["role"] == "user" else "assistant"):
-        st.markdown(chat["content"])
