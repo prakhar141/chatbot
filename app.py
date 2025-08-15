@@ -1,4 +1,4 @@
-# cleaned_buddy_vanilla.py
+# cleaned_buddy_vanilla_refactored.py
 import os
 import json
 import sqlite3
@@ -40,7 +40,7 @@ if not firebase_admin._apps:
 else:
     firebase_admin.get_app()
 
-realtime_db = db.reference('/')
+realtime_db = db.reference("/")
 
 # ================= AUTHENTICATION (Passwordless) =================
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
@@ -59,27 +59,23 @@ if "authenticated" not in st.session_state or not st.session_state["authenticate
                 try:
                     user = auth.get_user_by_email(email_norm)
                     st.success(f"Welcome back, {user.display_name or name}!")
-                    st.session_state.chat_history = []
                 except auth.UserNotFoundError:
                     import secrets
                     random_password = secrets.token_urlsafe(16)
                     user = auth.create_user(email=email_norm, password=random_password, display_name=name)
                     st.success(f"Account created! Welcome, {name}!")
-                    st.session_state.chat_history = []
 
                 st.session_state["user_uid"] = user.uid
                 st.session_state["user_name"] = name
                 st.session_state["authenticated"] = True
-                st.rerun()
+                st.session_state["chat_history"] = []
+                st.experimental_rerun()
             except Exception as e:
                 st.error(f"Authentication failed: {e}")
     st.stop()
 
-# ================= CHAT APP STARTS HERE =================
+# ================= STREAMLIT PAGE =================
 st.set_page_config(page_title="BITS Buddy", layout="wide")
-# ================= PAGE HEADER =================
-
-import streamlit as st
 
 st.markdown(
     """
@@ -97,14 +93,15 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-st.write("")  # small space after header
 
+st.write("")  # small space
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
 # ================= SQLITE CACHE =================
 def init_sqlite(db_path: str = SQLITE_DB_PATH):
     conn = sqlite3.connect(db_path, check_same_thread=False)
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS cache (
             key TEXT PRIMARY KEY,
             model TEXT,
@@ -112,7 +109,8 @@ def init_sqlite(db_path: str = SQLITE_DB_PATH):
             response TEXT,
             ts REAL
         )
-    """)
+        """
+    )
     conn.commit()
     return conn
 
@@ -122,7 +120,6 @@ if ENABLE_PERSISTENT_CACHE:
         _sql_conn = init_sqlite(SQLITE_DB_PATH)
     except Exception as e:
         st.warning(f"Could not initialize SQLite cache: {e}")
-        _sql_conn = None
 
 def sql_get(key: str) -> Optional[str]:
     if not _sql_conn:
@@ -142,13 +139,13 @@ def sql_set(key: str, model: str, messages: List[Dict[str, str]], response: str)
 
 # ================= IN-MEMORY CACHE =================
 if "prompt_cache" not in st.session_state:
-    st.session_state.prompt_cache = {}
+    st.session_state["prompt_cache"] = {}
 
 def _cache_set(key: str, value: str):
-    st.session_state.prompt_cache[key] = {"response": value, "ts": time.time()}
+    st.session_state["prompt_cache"][key] = {"response": value, "ts": time.time()}
 
 def _cache_get(key: str) -> Optional[str]:
-    v = st.session_state.prompt_cache.get(key)
+    v = st.session_state["prompt_cache"].get(key)
     return v["response"] if v else None
 
 def make_cache_key(model: str, messages: List[Dict[str, str]]):
@@ -197,11 +194,13 @@ def query_openrouter(model: str, messages: List[Dict[str, str]]) -> str:
             _cache_set(key, cached_sql)
             return cached_sql
 
-    payload = {"model": model, "messages": messages}
-    r = requests.post(OPENROUTER_URL, headers=HEADERS_BASE, json=payload, timeout=30)
-    r.raise_for_status()
-    data = r.json()
-    content = data.get("choices", [{}])[0].get("message", {}).get("content") or data.get("text") or str(data)
+    try:
+        r = requests.post(OPENROUTER_URL, headers=HEADERS_BASE, json={"model": model, "messages": messages}, timeout=30)
+        r.raise_for_status()
+        data = r.json()
+        content = data.get("choices", [{}])[0].get("message", {}).get("content") or data.get("text") or str(data)
+    except Exception as e:
+        content = f"❌ OpenRouter request failed: {e}"
 
     _cache_set(key, content)
     if ENABLE_PERSISTENT_CACHE and _sql_conn:
@@ -218,32 +217,24 @@ def build_primary_prompt(context: str, question: str) -> List[Dict[str, str]]:
         {"role": "user", "content": f"Question: {question}\nContext:\n{context}"}
     ]
 
-# ================= AUTHENTICATION CHECK =================
-if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
-    st.warning("Authentication required.")
-    st.stop()
-
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-# Initialize session state
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-if "chat_input" not in st.session_state:
-    st.session_state.chat_input = ""
-
 # ================= USER INPUT =================
+if "chat_history" not in st.session_state:
+    st.session_state["chat_history"] = []
+
+if "chat_input" not in st.session_state:
+    st.session_state["chat_input"] = ""
+
 user_query = st.text_input(
-    "", 
+    "",
     key="chat_input",
-    value=st.session_state.chat_input,  # bind the session state
+    value=st.session_state["chat_input"],
     placeholder="Type your question here..."
 ).strip()
 
 if user_query:
-    # Add user message
-    st.session_state.chat_history.append({"role": "user", "content": user_query})
+    st.session_state["chat_history"].append({"role": "user", "content": user_query})
 
-    # Retrieve relevant documents
+    # Retrieve relevant docs
     try:
         docs = retriever.get_relevant_documents(user_query)
         context = "\n".join([doc.page_content for doc in docs]) if docs else ""
@@ -251,25 +242,16 @@ if user_query:
         context = ""
 
     prompt = build_primary_prompt(context, user_query)
+    answer = query_openrouter(MODEL_MID, prompt)
 
-    # Query model
-    try:
-        answer = query_openrouter(MODEL_MID, prompt)
-    except Exception as e:
-        answer = f"❌ Error generating answer: {e}"
+    st.session_state["chat_history"].append({"role": "assistant", "content": answer})
+    st.session_state["chat_input"] = ""
 
-    # Add assistant message
-    st.session_state.chat_history.append({"role": "assistant", "content": answer})
-
-    # Clear input box by updating session state
-    st.session_state.chat_input = ""
-
-# ================= DISPLAY CHAT HISTORY =================
-for i, chat in enumerate(st.session_state.chat_history):
+# ================= DISPLAY CHAT =================
+for i, chat in enumerate(st.session_state["chat_history"]):
     role = "user" if chat["role"] == "user" else "assistant"
 
-    # Animate only the latest assistant response
-    if role == "assistant" and i == len(st.session_state.chat_history) - 1:
+    if role == "assistant" and i == len(st.session_state["chat_history"]) - 1:
         placeholder = st.empty()
         animated_text = ""
         for c in chat["content"]:
@@ -281,7 +263,7 @@ for i, chat in enumerate(st.session_state.chat_history):
         with st.chat_message(role):
             st.markdown(chat["content"])
 
-# ================= PAGE FOOTER =================
+# ================= FOOTER =================
 st.markdown(
     """
     <div style="
