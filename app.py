@@ -94,6 +94,7 @@ with st.sidebar:
         st.rerun()
 
     language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
+    use_advanced_rag = st.checkbox("Use Advanced Self-Critique RAG", value=True, key="use_advanced_rag")
     st.markdown("---")
     st.checkbox("Enable Persistent SQLite Cache", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
 
@@ -315,6 +316,18 @@ def modular_rag_smart_answer(context: str, question: str, lang: str = "English")
         return result
     except Exception as e:
         return {"error": str(e)}
+def vanilla_rag_answer(context: str, question: str, lang: str = "English") -> str:
+    """
+    A simpler RAG pipeline: retrieve context -> generate a single direct answer.
+    """
+    try:
+        prompt = [
+            {"role": "system", "content": f"You are BitsBuddy, a BITSian senior. Answer in {lang}. Be concise and helpful."},
+            {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}"}
+        ]
+        return query_models_with_fallbacks([MODEL_MID] + MODEL_FALLBACKS, prompt)
+    except Exception as e:
+        return f"Error in Vanilla RAG: {e}"
 
 # ----------------- Session init -----------------
 if "authenticated" in st.session_state and st.session_state["authenticated"]:
@@ -368,38 +381,52 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
     if not query:
         st.warning("Please type a question.")
     else:
-        # Append user message to history and show it
+        # Append user message to history
         st.session_state.chat_history.append({"role": "user", "content": query})
         with st.chat_message("user"):
             st.markdown(query)
 
-        # Build context from retriever and uploaded content (always do this before calling the RAG pipeline)
+        # Build context from retriever
         try:
             docs = retriever.get_relevant_documents(query)
-            context = "\n".join([doc.page_content for doc in docs]) if docs else (st.session_state.get("uploaded_content", "") or "")
+            context = "\n".join([doc.page_content for doc in docs]) if docs else (
+                st.session_state.get("uploaded_content", "") or ""
+            )
         except Exception as e:
             context = st.session_state.get("uploaded_content", "") or ""
             st.warning(f"Retriever failed: {e}")
 
-        # Thinking + RAG
+        # Assistant response
         with st.chat_message("assistant"):
             thinking_placeholder = st.empty()
             try:
-                # thinking monologue (cheap)
-                thinking_prompt = build_thinking_prompt(query, context)
-                thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
-                animated = ""
-                for ch in thinking_text:
-                    animated += ch
-                    thinking_placeholder.markdown(f"**Thinking:** {animated}|")
-                    time.sleep(0.01)
-                thinking_placeholder.markdown(f"**Thinking:** {animated}")
+                if st.session_state.get("use_advanced_rag", True):
+                    # ---------------- Advanced RAG Mode ----------------
+                    # Thinking monologue
+                    thinking_prompt = build_thinking_prompt(query, context)
+                    thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
 
-                time.sleep(0.25)
-                thinking_placeholder.markdown("🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
+                    animated = ""
+                    for ch in thinking_text:
+                        animated += ch
+                        thinking_placeholder.markdown(f"**Thinking:** {animated}|")
+                        time.sleep(0.01)
+                    thinking_placeholder.markdown(f"**Thinking:** {animated}")
 
-                rag_result = modular_rag_smart_answer(context, query, lang=language)
+                    time.sleep(0.25)
+                    thinking_placeholder.markdown("🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
 
+                    # Full pipeline with self-critique
+                    rag_result = modular_rag_smart_answer(context, query, lang=language)
+                    final_answer = rag_result.get("final", rag_result.get("error", "Sorry — something went wrong."))
+
+                else:
+                    # ---------------- Vanilla RAG Mode ----------------
+                    thinking_placeholder.markdown("⚡ Fetching quick answer...")
+                    final_answer = vanilla_rag_answer(context, query, lang=language)
+                    rag_result = {"final": final_answer}
+
+                # Store chat record
                 chat_record = {
                     "question": query,
                     "thinking": rag_result.get("thinking", ""),
@@ -409,17 +436,21 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                     "language": language
                 }
 
+                # Display answer
                 if "error" in rag_result:
                     thinking_placeholder.markdown(f"❌ Error while generating answer: {rag_result['error']}")
                 else:
-                    final_answer = chat_record["final"]
-                    animated = ""
-                    for c in final_answer:
-                        animated += c
-                        thinking_placeholder.markdown(animated + "|")
-                        time.sleep(0.004)
-                    thinking_placeholder.markdown(animated)
+                    if st.session_state.get("use_advanced_rag", True):
+                        animated = ""
+                        for c in final_answer:
+                            animated += c
+                            thinking_placeholder.markdown(animated + "|")
+                            time.sleep(0.004)
+                        thinking_placeholder.markdown(animated)
+                    else:
+                        thinking_placeholder.markdown(final_answer)
 
+                # Save to history
                 st.session_state.chat_history.append({"role": "assistant", "content": chat_record["final"]})
                 st.session_state.just_streamed = True
 
@@ -429,12 +460,8 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
 
             except Exception as e:
                 thinking_placeholder.markdown(f"❌ Error: {e}")
-                st.session_state.chat_history.append({
-                    "role": "assistant",
-                    "content": f"Error: {e}"
-                })
+                st.session_state.chat_history.append({"role": "assistant", "content": f"Error: {e}"})
                 st.session_state.just_streamed = True
-
 # ----------------- Display chat history (non-streamed older messages) -----------------
 if st.session_state.just_streamed and len(st.session_state.chat_history) > 0:
     history_to_show = st.session_state.chat_history[:-1]
