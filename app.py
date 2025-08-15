@@ -27,6 +27,7 @@ SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
 ENABLE_PERSISTENT_CACHE = True
 
 # ================= FIREBASE =================
+# ================= FIREBASE =================
 if not firebase_admin._apps:
     try:
         firebase_config = dict(st.secrets["firebase"])
@@ -41,6 +42,46 @@ else:
     firebase_admin.get_app()
 
 realtime_db = db.reference('/')
+
+# ================= AUTHENTICATION =================
+if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
+    st.title("🔐 BITS Buddy Login")
+    st.markdown("Please log in to continue")
+    
+    name = st.text_input("Full Name")
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login / Sign Up"):
+        if not name or not email or not password:
+            st.error("Please fill in all fields.")
+        else:
+            email_norm = email.strip().lower()
+            try:
+                try:
+                    user = auth.get_user_by_email(email_norm)
+                    st.success(f"Welcome back, {user.display_name or name}!")
+                    st.session_state.uid = user.uid
+                    st.session_state.chat_history = []  # load from DB if needed
+                except auth.UserNotFoundError:
+                    user = auth.create_user(email=email_norm, password=password, display_name=name)
+                    st.success(f"Account created! Welcome, {name}!")
+                    st.session_state.uid = user.uid
+                    st.session_state.chat_history = []
+                
+                st.session_state["user_uid"] = user.uid
+                st.session_state["user_name"] = name
+                st.session_state["authenticated"] = True
+                st.experimental_rerun()
+            except Exception as e:
+                st.error(f"Authentication failed: {e}")
+    st.stop()
+
+# ================= CHAT APP STARTS HERE =================
+st.set_page_config(page_title="BITS Buddy", layout="wide")
+st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
+
+
 
 # ================= SQLITE CACHE =================
 def init_sqlite(db_path: str = SQLITE_DB_PATH):
