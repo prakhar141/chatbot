@@ -362,16 +362,33 @@ else:
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
 # ----------------- Chat input with + button for file uploads -----------------
+st.markdown("""
+<style>
+.button-container button {
+    height: 38px;  /* match input box height */
+    padding: 0 12px;
+    margin-top: 0;
+    vertical-align: middle;
+}
+.text-input-container input {
+    height: 38px;
+}
+</style>
+""", unsafe_allow_html=True)
 
-
-# Place + button on the left and text input on the right
-col1, col2 = st.columns([1, 8])  # button narrower, input wider
+# Columns for + button and input
+col1, col2 = st.columns([1, 8])
 
 with col1:
-    upload_clicked = st.button("➕", key="upload_plus")  # plus button on left
+    # Wrap button in a div for CSS targeting
+    st.markdown('<div class="button-container">', unsafe_allow_html=True)
+    upload_clicked = st.button("➕", key="upload_plus")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 with col2:
+    st.markdown('<div class="text-input-container">', unsafe_allow_html=True)
     user_query = st.text_input("", key="chat_input", placeholder="Type your question here...")
+    st.markdown('</div>', unsafe_allow_html=True)
 # Handle file upload popup when + is clicked
 if upload_clicked:
     uploaded_file = st.file_uploader("Upload PDF or Image", type=["pdf", "png", "jpg", "jpeg"])
