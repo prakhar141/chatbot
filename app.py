@@ -227,14 +227,10 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 # ================= CHAT HANDLER WITH TYPING ANIMATION =================
+# ================= CHAT HANDLER WITH TYPING ANIMATION =================
 user_query = st.text_input("", key="chat_input", placeholder="Type your question here...").strip()
 if user_query:
     st.session_state.chat_history.append({"role": "user", "content": user_query})
-    with st.chat_message("user"):
-        st.markdown(user_query)
-
-    assistant_placeholder = st.empty()
-    assistant_placeholder.markdown("⏳ I am preparing your answer...")
 
     try:
         docs = retriever.get_relevant_documents(user_query)
@@ -249,20 +245,13 @@ if user_query:
     except Exception as e:
         answer = f"❌ Error generating answer: {e}"
 
-    # Typing animation
-    animated_text = ""
-    for c in answer:
-        animated_text += c
-        assistant_placeholder.markdown(animated_text + "▌")
-        time.sleep(0.02)
-    assistant_placeholder.markdown(answer)
-
     st.session_state.chat_history.append({"role": "assistant", "content": answer})
 
 # ================= DISPLAY CHAT HISTORY =================
 for chat in st.session_state.chat_history:
     with st.chat_message("user" if chat["role"] == "user" else "assistant"):
         st.markdown(chat["content"])
+
 # ================= PAGE FOOTER =================
 st.markdown(
     """
