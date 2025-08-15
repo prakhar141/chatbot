@@ -77,6 +77,26 @@ if "authenticated" not in st.session_state or not st.session_state["authenticate
 
 # ================= CHAT APP STARTS HERE =================
 st.set_page_config(page_title="BITS Buddy", layout="wide")
+# ================= PAGE HEADER =================
+st.markdown(
+    """
+    <div style="
+        background-color: #4B0082;  /* Indigo color */
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+        color: white;
+        font-size: 28px;
+        font-weight: bold;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.2);
+    ">
+        🎓 BITS Buddy
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+st.write("")  # small space after header
+
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
 # ================= SQLITE CACHE =================
