@@ -1,15 +1,16 @@
-# cleaned_buddy_vanilla_refactored.py
+# cleaned_buddy.py
 import os
-import json
-import sqlite3
 import time
 import hashlib
+import json
+import sqlite3
 import fitz
 import requests
+from PIL import Image
 import streamlit as st
-from typing import List, Dict, Optional
+from typing import List, Dict, Any, Optional
 
-# LangChain / FAISS imports
+# LangChain/FAISS imports
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -18,15 +19,46 @@ from langchain.docstore.document import Document
 import firebase_admin
 from firebase_admin import credentials, auth, db
 
-# ================= CONFIG =================
+# ========== CONFIG (tweak these models per your OpenRouter access) ==========
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
+MODEL_CHEAP = os.getenv("MODEL_CHEAP") or "deepseek/deepseek-chat-v3-0324:free"
 MODEL_MID = os.getenv("MODEL_MID") or "openai/gpt-oss-20b:free"
+MODEL_HIGH = os.getenv("MODEL_HIGH") or "deepseek/deepseek-r1-0528:free"
+MODEL_FALLBACKS = [MODEL_MID, MODEL_CHEAP]
+
 EMBED_MODEL = os.getenv("EMBED_MODEL") or "sentence-transformers/all-MiniLM-L6-v2"
 K_VAL = int(os.getenv("K_VAL") or 4)
+
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
 ENABLE_PERSISTENT_CACHE = True
 
-# ================= FIREBASE =================
+# ----------------- utilities for firebase chat history -----------------
+def load_user_chat_history(uid: str) -> List[Dict[str, Any]]:
+    try:
+        ref = db.reference(f"user_chats/{uid}")
+        snapshot = ref.get()
+        if not snapshot:
+            return []
+        chat_data = snapshot.get("chat")
+        if isinstance(chat_data, list):
+            return chat_data
+        st.warning(f"Unexpected chat format for UID {uid}, resetting history.")
+        return []
+    except Exception as e:
+        st.error(f"Failed to load chat history for UID {uid}: {e}")
+        return []
+
+
+def save_user_chat_history(uid: str, chat: List[Dict[str, Any]]) -> bool:
+    try:
+        ref = db.reference(f"user_chats/{uid}")
+        ref.set({"chat": chat})
+        return True
+    except Exception as e:
+        st.error(f"Failed to save chat history for UID {uid}: {e}")
+        return False
+
+# ----------------- FIREBASE INIT -----------------
 if not firebase_admin._apps:
     try:
         firebase_config = dict(st.secrets["firebase"])
@@ -40,68 +72,36 @@ if not firebase_admin._apps:
 else:
     firebase_admin.get_app()
 
-realtime_db = db.reference("/")
+realtime_db = db.reference('/')
 
-# ================= AUTHENTICATION (Passwordless) =================
-if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
-    st.title("🔐 BITS Buddy Login")
-    st.markdown("Enter your name and email to continue")
-
-    name = st.text_input("Full Name")
-    email = st.text_input("Email")
-
-    if st.button("Login / Sign Up"):
-        if not name or not email:
-            st.error("Please fill in all fields.")
-        else:
-            email_norm = email.strip().lower()
-            try:
-                try:
-                    user = auth.get_user_by_email(email_norm)
-                    st.success(f"Welcome back, {user.display_name or name}!")
-                except auth.UserNotFoundError:
-                    import secrets
-                    random_password = secrets.token_urlsafe(16)
-                    user = auth.create_user(email=email_norm, password=random_password, display_name=name)
-                    st.success(f"Account created! Welcome, {name}!")
-
-                st.session_state["user_uid"] = user.uid
-                st.session_state["user_name"] = name
-                st.session_state["authenticated"] = True
-                st.session_state["chat_history"] = []
-                st.rerun()
-            except Exception as e:
-                st.error(f"Authentication failed: {e}")
-    st.stop()
-
-# ================= STREAMLIT PAGE =================
+# ----------------- Streamlit page & sidebar -----------------
 st.set_page_config(page_title="BITS Buddy", layout="wide")
+st.title("🎓 BITS Buddy")
+st.markdown("Ask me anything about BITS Pilani")
 
-st.markdown(
-    """
-    <div style="display: flex; border-radius: 10px; overflow: hidden; box-shadow: 2px 2px 10px rgba(0,0,0,0.3);">
-        <div style="background-color: #FFA500; flex: 1; padding: 20px; text-align: center; color: white; font-size: 32px; font-weight: bold;">
-            🎓 BITS 
-        </div>
-        <div style="background-color: #87CEEB; flex: 1; padding: 20px; text-align: center; color: white; font-size: 32px; font-weight: bold;">
-            Buddy
-        </div>
-        <div style="background-color: #FF0000; flex: 1; padding: 20px; text-align: center; color: white; font-size: 32px; font-weight: bold;">
-            🚀
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+with st.sidebar:
+    st.header("⚙️ Controls")
+    if st.button("🔁 Start New Chat"):
+        uid = st.session_state.get("user_uid")
+        if uid:
+            try:
+                ref = db.reference(f"user_chats/{uid}")
+                ref.delete()
+            except Exception as e:
+                st.warning(f"Failed to clear history: {e}")
+        st.session_state.chat_history = []
+        st.session_state.just_streamed = False
+        st.rerun()
 
-st.write("")  # small space
-st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
+    uploaded_file = st.file_uploader("📄 Upload PDF or image", type=["pdf", "png", "jpg", "jpeg"])
+    language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
+    st.markdown("---")
+    st.checkbox("Enable Persistent SQLite Cache", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
 
-# ================= SQLITE CACHE =================
+# ----------------- SQLITE CACHE -----------------
 def init_sqlite(db_path: str = SQLITE_DB_PATH):
     conn = sqlite3.connect(db_path, check_same_thread=False)
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS cache (
             key TEXT PRIMARY KEY,
             model TEXT,
@@ -109,8 +109,7 @@ def init_sqlite(db_path: str = SQLITE_DB_PATH):
             response TEXT,
             ts REAL
         )
-        """
-    )
+    """)
     conn.commit()
     return conn
 
@@ -120,6 +119,7 @@ if ENABLE_PERSISTENT_CACHE:
         _sql_conn = init_sqlite(SQLITE_DB_PATH)
     except Exception as e:
         st.warning(f"Could not initialize SQLite cache: {e}")
+        _sql_conn = None
 
 def sql_get(key: str) -> Optional[str]:
     if not _sql_conn:
@@ -137,15 +137,20 @@ def sql_set(key: str, model: str, messages: List[Dict[str, str]], response: str)
     )
     _sql_conn.commit()
 
-# ================= IN-MEMORY CACHE =================
+# ----------------- in-memory cache -----------------
 if "prompt_cache" not in st.session_state:
-    st.session_state["prompt_cache"] = {}
+    st.session_state.prompt_cache = {}
+
+CACHE_MAX_ENTRIES = 4000
 
 def _cache_set(key: str, value: str):
-    st.session_state["prompt_cache"][key] = {"response": value, "ts": time.time()}
+    if len(st.session_state.prompt_cache) >= CACHE_MAX_ENTRIES:
+        oldest = min(st.session_state.prompt_cache.items(), key=lambda kv: kv[1]["ts"])[0]
+        st.session_state.prompt_cache.pop(oldest, None)
+    st.session_state.prompt_cache[key] = {"response": value, "ts": time.time()}
 
 def _cache_get(key: str) -> Optional[str]:
-    v = st.session_state["prompt_cache"].get(key)
+    v = st.session_state.prompt_cache.get(key)
     return v["response"] if v else None
 
 def make_cache_key(model: str, messages: List[Dict[str, str]]):
@@ -154,7 +159,7 @@ def make_cache_key(model: str, messages: List[Dict[str, str]]):
     digest.update(json.dumps(messages, sort_keys=True, ensure_ascii=False).encode("utf-8"))
     return digest.hexdigest()
 
-# ================= VECTOR DB =================
+# ----------------- Vector DB -----------------
 @st.cache_resource
 def load_vector_db(folder="."):
     docs = []
@@ -168,6 +173,7 @@ def load_vector_db(folder="."):
                     docs.extend([Document(page_content=c, metadata={"source": file}) for c in chunks])
             except Exception as e:
                 st.warning(f"Could not read {file}: {e}")
+
     if not docs:
         class EmptyRetriever:
             def get_relevant_documents(self, q): return []
@@ -179,109 +185,309 @@ def load_vector_db(folder="."):
 
 retriever = load_vector_db()
 
-# ================= OPENROUTER QUERY =================
+# ----------------- File uploads handling -----------------
+uploaded_content = ""
+if 'uploaded_content' not in st.session_state:
+    st.session_state.uploaded_content = ""
+
+if uploaded_file:
+    file_type = uploaded_file.type
+    if file_type == "application/pdf":
+        try:
+            with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
+                uploaded_content = "\n".join(page.get_text() for page in doc)
+                st.session_state.uploaded_content = uploaded_content
+        except Exception as e:
+            st.warning(f"PDF read error: {e}")
+    elif "image" in file_type:
+        try:
+            img = Image.open(uploaded_file)
+            st.session_state.uploaded_content = "[Image content; enable OCR to extract text]"
+        except Exception as e:
+            st.warning(f"Image read error: {e}")
+
+    if st.session_state.uploaded_content and st.session_state.uploaded_content.strip():
+        st.success("✅ Extracted content from file.")
+        st.text_area("📄 Preview (first 1000 chars)", st.session_state.uploaded_content[:1000], height=200)
+    else:
+        st.warning("⚠️ Couldn't extract readable text from the file.")
+
+# ----------------- OpenRouter helpers (unchanged) -----------------
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 HEADERS_BASE = {"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"}
 
-def query_openrouter(model: str, messages: List[Dict[str, str]]) -> str:
+def query_openrouter_with_backoff(model: str, messages: List[Dict[str, str]], max_retries: int = 4, timeout: int = 30) -> str:
     key = make_cache_key(model, messages)
     cached = _cache_get(key)
     if cached:
         return cached
-    if ENABLE_PERSISTENT_CACHE and _sql_conn:
+    if st.session_state.get("enable_sqlite", ENABLE_PERSISTENT_CACHE) and _sql_conn:
         cached_sql = sql_get(key)
         if cached_sql:
             _cache_set(key, cached_sql)
             return cached_sql
 
-    try:
-        r = requests.post(OPENROUTER_URL, headers=HEADERS_BASE, json={"model": model, "messages": messages}, timeout=30)
-        r.raise_for_status()
-        data = r.json()
-        content = data.get("choices", [{}])[0].get("message", {}).get("content") or data.get("text") or str(data)
-    except Exception as e:
-        content = f"❌ OpenRouter request failed: {e}"
-
-    _cache_set(key, content)
-    if ENABLE_PERSISTENT_CACHE and _sql_conn:
+    payload = {"model": model, "messages": messages}
+    backoff = 1.0
+    for attempt in range(max_retries):
         try:
-            sql_set(key, model, messages, content)
-        except:
-            pass
-    return content
+            r = requests.post(OPENROUTER_URL, headers=HEADERS_BASE, json=payload, timeout=timeout)
+            if r.status_code == 429:
+                raise requests.HTTPError("429")
+            r.raise_for_status()
+            data = r.json()
+            content = None
+            if isinstance(data.get("choices"), list) and data["choices"]:
+                c = data["choices"][0]
+                msg = c.get("message") or c.get("delta") or c
+                content = msg.get("content") if isinstance(msg, dict) else str(msg)
+            elif data.get("text"):
+                content = data.get("text")
+            else:
+                content = json.dumps(data)
 
-# ================= PROMPTS =================
-def build_primary_prompt(context: str, question: str) -> List[Dict[str, str]]:
+            _cache_set(key, content)
+            if st.session_state.get("enable_sqlite", ENABLE_PERSISTENT_CACHE) and _sql_conn:
+                try:
+                    sql_set(key, model, messages, content)
+                except Exception:
+                    pass
+            return content
+        except requests.HTTPError as e:
+            if "429" in str(e):
+                raise
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(backoff)
+            backoff *= 2
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(backoff)
+            backoff *= 2
+    raise RuntimeError("Failed to get response from OpenRouter after retries")
+
+def query_models_with_fallbacks(models: List[str], messages: List[Dict[str, str]]) -> str:
+    last_error = None
+    for m in models:
+        try:
+            return query_openrouter_with_backoff(m, messages)
+        except requests.HTTPError as e:
+            last_error = e
+            continue
+        except Exception as e:
+            last_error = e
+            continue
+    raise RuntimeError(f"All models failed. Last error: {last_error}")
+
+# ----------------- Prompts and RAG pipeline (unchanged structure) -----------------
+def scratchpad_reasoning(context: str, question: str) -> str:
+    return (
+        f"Let's think step-by-step.\n\nContext (shortened):\n"
+        f"{(context[:2000] + '...') if len(context) > 2000 else context}\n\nQuestion:\n{question}"
+    )
+
+def build_thinking_prompt(question: str, context: str) -> List[Dict[str, str]]:
     return [
-        {"role": "system", "content": "You are BitsBuddy, a BITSian senior. Answer concisely and helpfully with emojis."},
-        {"role": "user", "content": f"Question: {question}\nContext:\n{context}"}
+        {"role": "system", "content": ("You are an assistant that narrates a concise, casual internal monologue "
+                                      "before answering. Keep it 2-4 short sentences, conversational, use 'Hmm...', "
+                                      "'Oh I see...', 'Wait...' and DO NOT give the final answer — only describe what "
+                                      "you are thinking and what you plan to do next.")},
+        {"role": "user", "content": (f"Question: {question}\n\nRelevant context:\n"
+                                     f"{(context[:1500] + '...') if len(context) > 1500 else context}")}
     ]
 
-# ================= USER INPUT =================
-# ================= INITIALIZE SESSION STATE =================
-if "chat_history" not in st.session_state:
-    st.session_state["chat_history"] = []
+def build_primary_prompt(context: str, question: str, lang: str) -> List[Dict[str, str]]:
+    return [
+        {"role": "system", "content": (f"You are BitsBuddy, a BITSian senior. Answer in {lang}. "
+                                       "Use emojis, be concise and helpful. Provide actionable steps if relevant.")},
+        {"role": "user", "content": scratchpad_reasoning(context, question)}
+    ]
 
-# ================= USER INPUT =================
-user_query = st.text_input(
-    "",
-    key="chat_input",
-    placeholder="Type your question here..."
-).strip()
+def build_critic_prompt(context: str, question: str, answer: str) -> List[Dict[str, str]]:
+    return [
+        {"role": "system", "content": ("You are an honest critic checking the assistant’s answer for factual errors, "
+                                       "incompleteness, or hallucinations. Keep critiques short and list any unsupported "
+                                       "claims with reasons.")},
+        {"role": "user", "content": (f"Context:\n{(context[:1500] + '...') if len(context) > 1500 else context}\n\n"
+                                     f"Question:\n{question}\n\nAnswer:\n{answer}\n\nCritique and list corrections:")}
+    ]
 
-if user_query:
-    # Add user message
-    st.session_state["chat_history"].append({"role": "user", "content": user_query})
+def build_final_prompt(context: str, question: str, answer: str, critique: str, lang: str) -> List[Dict[str, str]]:
+    return [
+        {"role": "system", "content": (f"You are BitsBuddy+ with self-evaluation enabled. Based on critique, "
+                                       f"revise your original answer. Be clear and concise in {lang}.") },
+        {"role": "user", "content": (f"Original Answer:\n{answer}\n\nCritique:\n{critique}\n\nNow improve the answer accordingly.")}
+    ]
 
-    # Retrieve relevant docs
+def modular_rag_smart_answer(context: str, question: str, lang: str = "English") -> Dict[str, Any]:
+    result = {}
     try:
-        docs = retriever.get_relevant_documents(user_query)
-        context = "\n".join([doc.page_content for doc in docs]) if docs else ""
-    except:
-        context = ""
+        thinking_msgs = build_thinking_prompt(question, context)
+        thinking = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_msgs)
+        result["thinking"] = thinking
 
-    # Build prompt & query model
-    prompt = build_primary_prompt(context, user_query)
-    answer = query_openrouter(MODEL_MID, prompt)
+        primary_msgs = build_primary_prompt(context, question, lang)
+        primary = query_models_with_fallbacks([MODEL_MID] + MODEL_FALLBACKS, primary_msgs)
+        result["primary"] = primary
 
-    # Add assistant response
-    st.session_state["chat_history"].append({"role": "assistant", "content": answer})
+        critique_msgs = build_critic_prompt(context, question, primary)
+        critique = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, critique_msgs)
+        result["critique"] = critique
 
-    # Clear input by rerunning (Streamlit-safe)
-    st.rerun()
+        final_msgs = build_final_prompt(context, question, primary, critique, lang)
+        final = query_models_with_fallbacks([MODEL_HIGH] + MODEL_FALLBACKS, final_msgs)
+        result["final"] = final
 
-# ================= DISPLAY CHAT HISTORY =================
-for i, chat in enumerate(st.session_state["chat_history"]):
-    role = "user" if chat["role"] == "user" else "assistant"
+        return result
+    except Exception as e:
+        return {"error": str(e)}
 
-    if role == "assistant" and i == len(st.session_state["chat_history"]) - 1:
-        # Animate latest assistant response
-        placeholder = st.empty()
-        animated_text = ""
-        for c in chat["content"]:
-            animated_text += c
-            placeholder.markdown(animated_text + "▌")
-            time.sleep(0.02)
-        placeholder.markdown(chat["content"])
+# ----------------- Session init -----------------
+if "authenticated" in st.session_state and st.session_state["authenticated"]:
+    if "chat_history" not in st.session_state:
+        uid = st.session_state.get("user_uid")
+        st.session_state.chat_history = load_user_chat_history(uid) if uid else []
+    if "just_streamed" not in st.session_state:
+        st.session_state.just_streamed = False
+else:
+    # show login screen if not authenticated (define login_screen elsewhere or reuse your function)
+    def login_screen():
+        st.title("🔐 BITS Buddy Login")
+        st.markdown("Please log in to continue")
+        name = st.text_input("Full Name")
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
+        if st.button("Login / Sign Up"):
+            if not name or not email or not password:
+                st.error("Please fill in all fields.")
+                return False
+            try:
+                email_norm = email.strip().lower()
+                try:
+                    user = auth.get_user_by_email(email_norm)
+                    st.success(f"Welcome back, {user.display_name or name}!")
+                    st.session_state.uid = user.uid
+                    st.session_state.chat_history = load_user_chat_history(user.uid)
+                except auth.UserNotFoundError:
+                    user = auth.create_user(email=email_norm, password=password, display_name=name)
+                    st.success(f"Account created! Welcome, {name}!")
+                    st.session_state.uid = user.uid
+                    st.session_state.chat_history = []
+                st.session_state["user_uid"] = user.uid
+                st.session_state["user_name"] = name
+                st.session_state["authenticated"] = True
+                st.rerun()
+            except Exception as e:
+                st.error(f"Authentication failed: {e}")
+                return False
+
+    login_screen()
+    st.stop()
+
+# ----------------- Main chat handler (single unified flow) -----------------
+st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
+
+
+# Chat input - single place that drives everything
+if user_query := st.chat_input("Ask me about BITS Pilani anything"):
+    query = user_query.strip()
+    if not query:
+        st.warning("Please type a question.")
     else:
-        with st.chat_message(role):
-            st.markdown(chat["content"])
-# ================= FOOTER =================
-st.markdown(
-    """
-    <div style="
-        position: fixed;
-        bottom: 0;
-        width: 100%;
-        background-color: #f1f1f1;
-        padding: 10px 0;
-        text-align: center;
-        font-size: 14px;
-        color: #555;
-        border-top: 1px solid #ccc;
-    ">
-        Developed by BITS Pilani, Pilani Campus | &copy; 2025 Developer Tool
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+        # Append user message to history and show it
+        st.session_state.chat_history.append({"role": "user", "content": query})
+        with st.chat_message("user"):
+            st.markdown(query)
+
+        # Build context from retriever and uploaded content (always do this before calling the RAG pipeline)
+        try:
+            docs = retriever.get_relevant_documents(query)
+            context = "\n".join([doc.page_content for doc in docs]) if docs else (st.session_state.get("uploaded_content", "") or "")
+        except Exception as e:
+            context = st.session_state.get("uploaded_content", "") or ""
+            st.warning(f"Retriever failed: {e}")
+
+        # Thinking + RAG
+        with st.chat_message("assistant"):
+            thinking_placeholder = st.empty()
+            try:
+                # thinking monologue (cheap)
+                thinking_prompt = build_thinking_prompt(query, context)
+                thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
+                animated = ""
+                for ch in thinking_text:
+                    animated += ch
+                    thinking_placeholder.markdown(f"**Thinking:** {animated}|")
+                    time.sleep(0.01)
+                thinking_placeholder.markdown(f"**Thinking:** {animated}")
+
+                time.sleep(0.25)
+                thinking_placeholder.markdown("🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
+
+                rag_result = modular_rag_smart_answer(context, query, lang=language)
+
+                chat_record = {
+                    "question": query,
+                    "thinking": rag_result.get("thinking", ""),
+                    "primary": rag_result.get("primary", ""),
+                    "critique": rag_result.get("critique", ""),
+                    "final": rag_result.get("final", rag_result.get("error", "Sorry — something went wrong.")),
+                    "language": language
+                }
+
+                if "error" in rag_result:
+                    thinking_placeholder.markdown(f"❌ Error while generating answer: {rag_result['error']}")
+                else:
+                    final_answer = chat_record["final"]
+                    animated = ""
+                    for c in final_answer:
+                        animated += c
+                        thinking_placeholder.markdown(animated + "|")
+                        time.sleep(0.004)
+                    thinking_placeholder.markdown(animated)
+
+                st.session_state.chat_history.append({"role": "assistant", "content": chat_record["final"]})
+                st.session_state.just_streamed = True
+
+                # Save to Firebase
+                if "uid" in st.session_state:
+                    save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
+
+            except Exception as e:
+                thinking_placeholder.markdown(f"❌ Error: {e}")
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": f"Error: {e}"
+                })
+                st.session_state.just_streamed = True
+
+# ----------------- Display chat history (non-streamed older messages) -----------------
+if st.session_state.just_streamed and len(st.session_state.chat_history) > 0:
+    history_to_show = st.session_state.chat_history[:-1]
+else:
+    history_to_show = st.session_state.chat_history
+
+for chat in (history_to_show):
+    with st.chat_message("user" if chat.get("role") == "user" else "assistant"):
+        st.markdown(chat.get("content", ""))
+
+if st.session_state.just_streamed:
+    st.session_state.just_streamed = False
+
+# ----------------- Sidebar history preview -----------------
+with st.sidebar:
+    st.subheader("📂 Chat History")
+    for i, chat in enumerate(reversed(st.session_state.chat_history)):
+        st.markdown(f"**Q{i+1}:** {chat.get('question', chat.get('content',''))}")
+        st.markdown(f"**A{i+1}:** {chat.get('final', chat.get('content',''))[:150]}...")
+        st.markdown("---")
+
+# ----------------- Footer -----------------
+st.markdown("""
+<hr style="margin-top: 40px;">
+<div style='text-align: center; color: #888; font-size: 14px;'>
+    Built with ❤️ by <b>BITS Pilani </b> ·  Pilani Campus · 
+    <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact us</a>
+</div>
+""", unsafe_allow_html=True)
