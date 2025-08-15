@@ -225,11 +225,10 @@ if "authenticated" not in st.session_state or not st.session_state["authenticate
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
-
-# ================= CHAT HANDLER WITH TYPING ANIMATION =================
-# ================= CHAT HANDLER WITH TYPING ANIMATION =================
+# ================= CHAT HANDLER =================
 user_query = st.text_input("", key="chat_input", placeholder="Type your question here...").strip()
 if user_query:
+    # Add user message to chat history
     st.session_state.chat_history.append({"role": "user", "content": user_query})
 
     try:
@@ -245,9 +244,25 @@ if user_query:
     except Exception as e:
         answer = f"❌ Error generating answer: {e}"
 
+    # Add assistant message to chat history
     st.session_state.chat_history.append({"role": "assistant", "content": answer})
 
-
+# ================= DISPLAY CHAT HISTORY WITH TYPING =================
+for i, chat in enumerate(st.session_state.chat_history):
+    role = "user" if chat["role"] == "user" else "assistant"
+    
+    # For the latest assistant message, show typing animation
+    if role == "assistant" and i == len(st.session_state.chat_history) - 1:
+        placeholder = st.empty()
+        animated_text = ""
+        for c in chat["content"]:
+            animated_text += c
+            placeholder.markdown(animated_text + "▌")
+            time.sleep(0.02)
+        placeholder.markdown(chat["content"])
+    else:
+        with st.chat_message(role):
+            st.markdown(chat["content"])
 
 # ================= PAGE FOOTER =================
 st.markdown(
