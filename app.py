@@ -225,17 +225,25 @@ if "authenticated" not in st.session_state or not st.session_state["authenticate
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
-# ================= CHAT HANDLER =================
+# Initialize session state
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+if "chat_input" not in st.session_state:
+    st.session_state.chat_input = ""
+
 # ================= USER INPUT =================
-user_query = st.text_input("", key="chat_input", placeholder="Type your question here...").strip()
+user_query = st.text_input(
+    "", 
+    key="chat_input",
+    value=st.session_state.chat_input,  # bind the session state
+    placeholder="Type your question here..."
+).strip()
 
 if user_query:
-    # Add user message to chat history
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
+    # Add user message
     st.session_state.chat_history.append({"role": "user", "content": user_query})
 
-    # Retrieve relevant context
+    # Retrieve relevant documents
     try:
         docs = retriever.get_relevant_documents(user_query)
         context = "\n".join([doc.page_content for doc in docs]) if docs else ""
@@ -244,7 +252,7 @@ if user_query:
 
     prompt = build_primary_prompt(context, user_query)
 
-    # Query the model
+    # Query model
     try:
         answer = query_openrouter(MODEL_MID, prompt)
     except Exception as e:
@@ -253,14 +261,14 @@ if user_query:
     # Add assistant message
     st.session_state.chat_history.append({"role": "assistant", "content": answer})
 
-    # Clear the input box after submission
+    # Clear input box by updating session state
     st.session_state.chat_input = ""
 
 # ================= DISPLAY CHAT HISTORY =================
 for i, chat in enumerate(st.session_state.chat_history):
     role = "user" if chat["role"] == "user" else "assistant"
 
-    # Only animate the latest assistant message
+    # Animate only the latest assistant response
     if role == "assistant" and i == len(st.session_state.chat_history) - 1:
         placeholder = st.empty()
         animated_text = ""
@@ -272,6 +280,7 @@ for i, chat in enumerate(st.session_state.chat_history):
     else:
         with st.chat_message(role):
             st.markdown(chat["content"])
+
 # ================= PAGE FOOTER =================
 st.markdown(
     """
