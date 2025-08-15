@@ -499,8 +499,15 @@ with st.sidebar:
 # ----------------- Footer -----------------
 st.markdown("""
 <hr style="margin-top: 40px;">
-<div style='text-align: center; color: #888; font-size: 14px;'>
-    Built with ❤️ by <b>BITS Pilani </b> ·  Pilani Campus · 
-    <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact us</a>
+<div style="
+    text-align: center;
+    color: #fff;
+    font-size: 14px;
+    padding: 10px 0;
+    background: linear-gradient(90deg, red, lightblue, yellow);
+">
+    Built with ❤️ by <b>BITS Pilani</b> · Pilani Campus · 
+    <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in" style="color: #fff; text-decoration: underline;">Contact us</a>
 </div>
 """, unsafe_allow_html=True)
+
