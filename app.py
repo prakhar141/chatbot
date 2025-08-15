@@ -46,7 +46,7 @@ realtime_db = db.reference('/')
 # ================= AUTHENTICATION (Passwordless) =================
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
     st.title("🔐 BITS Buddy Login")
-    st.markdown("Enter your name and email to continue (password not required)")
+    st.markdown("Enter your name and email to continue")
 
     name = st.text_input("Full Name")
     email = st.text_input("Email")
