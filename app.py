@@ -91,7 +91,7 @@ st.markdown(
         <div style="background-color: #FF0000; flex: 1; padding: 20px; text-align: center; color: white; font-size: 32px; font-weight: bold;">
             
         </div>
-    </div>
+   
     """,
     unsafe_allow_html=True
 )
