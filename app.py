@@ -205,9 +205,9 @@ def build_primary_prompt(context: str, question: str, lang: str) -> List[Dict[st
 st.set_page_config(page_title="BITS Buddy", layout="wide")
 st.title("🎓 BITS Buddy")
 
-with st.sidebar:
-    st.header("⚙️ Controls")
-    language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
+#with st.sidebar:
+   # st.header("⚙️ Controls")
+    #language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
 
 # ================= AUTHENTICATION =================
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
