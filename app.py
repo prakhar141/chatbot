@@ -218,20 +218,19 @@ def build_primary_prompt(context: str, question: str) -> List[Dict[str, str]]:
     ]
 
 # ================= USER INPUT =================
+# ================= INITIALIZE SESSION STATE =================
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
 
-if "chat_input" not in st.session_state:
-    st.session_state["chat_input"] = ""
-
+# ================= USER INPUT =================
 user_query = st.text_input(
     "",
     key="chat_input",
-    value=st.session_state["chat_input"],
     placeholder="Type your question here..."
 ).strip()
 
 if user_query:
+    # Add user message
     st.session_state["chat_history"].append({"role": "user", "content": user_query})
 
     # Retrieve relevant docs
@@ -241,17 +240,22 @@ if user_query:
     except:
         context = ""
 
+    # Build prompt & query model
     prompt = build_primary_prompt(context, user_query)
     answer = query_openrouter(MODEL_MID, prompt)
 
+    # Add assistant response
     st.session_state["chat_history"].append({"role": "assistant", "content": answer})
-    st.session_state["chat_input"] = ""
 
-# ================= DISPLAY CHAT =================
+    # Clear input by rerunning (Streamlit-safe)
+    st.rerun()
+
+# ================= DISPLAY CHAT HISTORY =================
 for i, chat in enumerate(st.session_state["chat_history"]):
     role = "user" if chat["role"] == "user" else "assistant"
 
     if role == "assistant" and i == len(st.session_state["chat_history"]) - 1:
+        # Animate latest assistant response
         placeholder = st.empty()
         animated_text = ""
         for c in chat["content"]:
@@ -262,7 +266,6 @@ for i, chat in enumerate(st.session_state["chat_history"]):
     else:
         with st.chat_message(role):
             st.markdown(chat["content"])
-
 # ================= FOOTER =================
 st.markdown(
     """
