@@ -501,13 +501,17 @@ st.markdown("""
 <hr style="margin-top: 40px;">
 <div style="
     text-align: center;
-    color: #fff;
+    color: #000;
     font-size: 14px;
-    padding: 10px 0;
-    background: linear-gradient(90deg, red, lightblue, yellow);
+    padding: 12px 0;
+    background: linear-gradient(
+        to right,
+        red 0%, red 33.33%,
+        lightblue 33.33%, lightblue 66.66%,
+        yellow 66.66%, yellow 100%
+    );
 ">
     Built with ❤️ by <b>BITS Pilani</b> · Pilani Campus · 
-    <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in" style="color: #fff; text-decoration: underline;">Contact us</a>
+    <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in" style="color: #000; text-decoration: underline;">Contact us</a>
 </div>
 """, unsafe_allow_html=True)
-
