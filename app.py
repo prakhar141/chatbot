@@ -81,17 +81,16 @@ st.set_page_config(page_title="BITS Buddy", layout="wide")
 
 st.markdown(
     """
-    <div style="
-        background: linear-gradient(90deg, #FFA500, #87CEEB, #FF0000); /* orange, light blue, red */
-        padding: 20px;
-        border-radius: 10px;
-        text-align: center;
-        color: white;
-        font-size: 32px;
-        font-weight: bold;
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.3);
-    ">
-        🎓 BITS Buddy
+    <div style="display: flex; border-radius: 10px; overflow: hidden; box-shadow: 2px 2px 10px rgba(0,0,0,0.3);">
+        <div style="background-color: #FFA500; flex: 1; padding: 20px; text-align: center; color: white; font-size: 32px; font-weight: bold;">
+            🎓 BITS Buddy
+        </div>
+        <div style="background-color: #87CEEB; flex: 1; padding: 20px; text-align: center; color: white; font-size: 32px; font-weight: bold;">
+            Buddy
+        </div>
+        <div style="background-color: #FF0000; flex: 1; padding: 20px; text-align: center; color: white; font-size: 32px; font-weight: bold;">
+            
+        </div>
     </div>
     """,
     unsafe_allow_html=True
