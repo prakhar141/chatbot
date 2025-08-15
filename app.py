@@ -261,3 +261,22 @@ if user_query:
 for chat in st.session_state.chat_history:
     with st.chat_message("user" if chat["role"] == "user" else "assistant"):
         st.markdown(chat["content"])
+# ================= PAGE FOOTER =================
+st.markdown(
+    """
+    <div style="
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        background-color: #f1f1f1;
+        padding: 10px 0;
+        text-align: center;
+        font-size: 14px;
+        color: #555;
+        border-top: 1px solid #ccc;
+    ">
+        Developed by BITS Pilani, Pilani Campus | &copy; 2025 Developer Tool
+    </div>
+    """,
+    unsafe_allow_html=True
+)
