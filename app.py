@@ -73,7 +73,7 @@ if "authenticated" not in st.session_state or not st.session_state["authenticate
                 st.session_state["user_uid"] = user.uid
                 st.session_state["user_name"] = name
                 st.session_state["authenticated"] = True
-                st.experimental_rerun()
+                st.rerun()
             except Exception as e:
                 st.error(f"Authentication failed: {e}")
     st.stop()
