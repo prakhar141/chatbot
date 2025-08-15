@@ -94,7 +94,7 @@ with st.sidebar:
         st.rerun()
 
     language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
-    use_advanced_rag = st.checkbox("Inner notes(response takes 3 min)", value=False, key="use_advanced_rag")
+    use_advanced_rag = st.checkbox("Reasoning(response takes 3 min)", value=False, key="use_advanced_rag")
     st.markdown("---")
     st.checkbox("For Faster Loading", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
 
