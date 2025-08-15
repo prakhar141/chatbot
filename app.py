@@ -451,9 +451,22 @@ if st.session_state.just_streamed:
 # ----------------- Sidebar history preview -----------------
 with st.sidebar:
     st.subheader("📂 Chat History")
-    for i, chat in enumerate(reversed(st.session_state.chat_history)):
-        st.markdown(f"**Q{i+1}:** {chat.get('question', chat.get('content',''))}")
-        st.markdown(f"**A{i+1}:** {chat.get('final', chat.get('content',''))[:150]}...")
+    
+    # Reverse chat history to show latest on top
+    for i, chat in enumerate(reversed(st.session_state.get("chat_history", []))):
+        role = chat.get("role", "user")
+        content = chat.get("content", "")
+        
+        # Truncate content to 150 chars for display
+        preview = content.replace("\n", " ")  # remove line breaks
+        if len(preview) > 150:
+            preview = preview[:150] + "..."
+        
+        # Display question/answer labels based on role
+        if role == "user":
+            st.markdown(f"**Q{i+1}:** {preview}")
+        else:
+            st.markdown(f"**A{i+1}:** {preview}")
         st.markdown("---")
 
 # ----------------- Footer -----------------
