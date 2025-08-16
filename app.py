@@ -447,8 +447,8 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                 thinking_placeholder.markdown(animated)
 
                 # Append assistant message to history
-                st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
-                st.session_state.just_streamed = True
+                #st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
+                #st.session_state.just_streamed = True
 
                 # Save to Firebase
                 if "uid" in st.session_state:
