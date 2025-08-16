@@ -393,13 +393,8 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
     if not query:
         st.warning("Please type a question.")
     else:
-        # Append user message immediately
+        # Append new user message
         st.session_state.chat_history.append({"role": "user", "content": query})
-
-        # Display all chat messages (history + new)
-        for chat in st.session_state.chat_history:
-            with st.chat_message("user" if chat["role"] == "user" else "assistant"):
-                st.markdown(chat["content"])
 
         # Build context from retriever
         try:
@@ -412,14 +407,15 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
             st.warning(f"Retriever failed: {e}")
 
         # Assistant response
-        with st.chat_message("assistant"):
-            thinking_placeholder = st.empty()
-            try:
+        try:
+            with st.chat_message("assistant"):
+                thinking_placeholder = st.empty()
+
                 if st.session_state.get("use_advanced_rag", True):
-                    # Advanced RAG mode with thinking monologue
                     thinking_prompt = build_thinking_prompt(query, context)
                     thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
 
+                    # Show "thinking"
                     animated = ""
                     for ch in thinking_text:
                         animated += ch
@@ -427,18 +423,14 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                         time.sleep(0.01)
                     thinking_placeholder.markdown(f"**Thinking:** {animated}")
 
-                    time.sleep(0.25)
-                    thinking_placeholder.markdown("🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
-
+                    # RAG answer
                     rag_result = modular_rag_smart_answer(context, query, lang=language)
                     final_answer = rag_result.get("final", rag_result.get("error", "Sorry — something went wrong."))
                 else:
-                    # Vanilla RAG mode
                     thinking_placeholder.markdown("⚡ Fetching quick answer...")
                     final_answer = vanilla_rag_answer(context, query, lang=language)
-                    rag_result = {"final": final_answer}
 
-                # Animate final answer (optional)
+                # Animate final answer
                 animated = ""
                 for c in final_answer:
                     animated += c
@@ -446,25 +438,22 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                     time.sleep(0.004)
                 thinking_placeholder.markdown(animated)
 
-                # Append assistant message to history
-                #st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
-                #st.session_state.just_streamed = True
+                # Append assistant reply to history
+                st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
 
-                # Save to Firebase
+                # Save to Firebase if logged in
                 if "uid" in st.session_state:
                     save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
 
-            except Exception as e:
-                thinking_placeholder.markdown(f"❌ Error: {e}")
-                st.session_state.chat_history.append({"role": "assistant", "content": f"Error: {e}"})
-                st.session_state.just_streamed = True
+        except Exception as e:
+            st.error(f"❌ Error: {e}")
+            st.session_state.chat_history.append({"role": "assistant", "content": f"Error: {e}"})
 
-# ----------------- Display older chat history -----------------
 
+# ----------------- Display chat history -----------------
 for chat in st.session_state.chat_history:
-   with st.chat_message("user" if chat.get("role") == "user" else "assistant"):
-        st.markdown(chat.get("content", ""))
-
+    with st.chat_message("user" if chat["role"] == "user" else "assistant"):
+        st.markdown(chat["content"])
 
 # ----------------- Sidebar history preview -----------------
 
