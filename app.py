@@ -385,7 +385,6 @@ else:
     st.stop()
 
 # ----------------- Main chat handler (single unified flow) -----------------
-# ----------------- Main chat handler (single unified flow) -----------------
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
 # Chat input
@@ -394,9 +393,13 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
     if not query:
         st.warning("Please type a question.")
     else:
-        # Display user message immediately (without appending yet)
-        with st.chat_message("user"):
-            st.markdown(query)
+        # Append user message immediately
+        st.session_state.chat_history.append({"role": "user", "content": query})
+
+        # Display all chat messages (history + new)
+        for chat in st.session_state.chat_history:
+            with st.chat_message("user" if chat["role"] == "user" else "assistant"):
+                st.markdown(chat["content"])
 
         # Build context from retriever
         try:
@@ -435,19 +438,15 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                     final_answer = vanilla_rag_answer(context, query, lang=language)
                     rag_result = {"final": final_answer}
 
-                # Display assistant's answer
-                if st.session_state.get("use_advanced_rag", True):
-                    animated = ""
-                    for c in final_answer:
-                        animated += c
-                        thinking_placeholder.markdown(animated + "|")
-                        time.sleep(0.004)
-                    thinking_placeholder.markdown(animated)
-                else:
-                    thinking_placeholder.markdown(final_answer)
+                # Animate final answer (optional)
+                animated = ""
+                for c in final_answer:
+                    animated += c
+                    thinking_placeholder.markdown(animated + "|")
+                    time.sleep(0.004)
+                thinking_placeholder.markdown(animated)
 
-                # Append both user and assistant messages at once
-                st.session_state.chat_history.append({"role": "user", "content": query})
+                # Append assistant message to history
                 st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
                 st.session_state.just_streamed = True
 
