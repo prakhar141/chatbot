@@ -21,7 +21,7 @@ from firebase_admin import credentials, auth, db
 
 # ========== CONFIG (tweak these models per your OpenRouter access) ==========
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
-MODEL_CHEAP = os.getenv("MODEL_CHEAP") or "deepseek/deepseek-chat-v3-0324:free"
+MODEL_CHEAP = os.getenv("MODEL_CHEAP") or "deepseek/deepseek-r1:free"
 MODEL_MID = os.getenv("MODEL_MID") or "openai/gpt-oss-20b:free"
 MODEL_HIGH = os.getenv("MODEL_HIGH") or "deepseek/deepseek-r1-0528:free"
 MODEL_FALLBACKS = [MODEL_MID, MODEL_CHEAP]
