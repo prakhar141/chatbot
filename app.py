@@ -460,32 +460,33 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                 st.session_state.just_streamed = True
 
 # ----------------- Display older chat history -----------------
-#for chat in st.session_state.chat_history:
- #   with st.chat_message("user" if chat.get("role") == "user" else "assistant"):
- #       st.markdown(chat.get("content", ""))
+
+for chat in st.session_state.chat_history:
+   with st.chat_message("user" if chat.get("role") == "user" else "assistant"):
+        st.markdown(chat.get("content", ""))
 
 
 # ----------------- Sidebar history preview -----------------
 
-#with st.sidebar:
-    #st.subheader("📂 Chat History")
+with st.sidebar:
+    st.subheader("📂 Chat History")
     
-    # Reverse chat history to show latest on top
-    #for i, chat in enumerate(reversed(st.session_state.get("chat_history", []))):
-     #   role = chat.get("role", "user")
-      #  content = chat.get("content", "")
+     #Reverse chat history to show latest on top
+    for i, chat in enumerate(reversed(st.session_state.get("chat_history", []))):
+        role = chat.get("role", "user")
+        content = chat.get("content", "")
         
         # Truncate content to 150 chars for display
-       # preview = content.replace("\n", " ")  # remove line breaks
-       # if len(preview) > 150:
-         #   preview = preview[:150] + "..."
+        preview = content.replace("\n", " ")  # remove line breaks
+        if len(preview) > 150:
+            preview = preview[:150] + "..."
         
-        # Display question/answer labels based on role
-        #if role == "user":
-         #   st.markdown(f"**Q{i+1}:** {preview}")
-      #  else:
-         #   st.markdown(f"**A{i+1}:** {preview}")
-       # st.markdown("---")
+         Display question/answer labels based on role
+        if role == "user":
+            st.markdown(f"**Q{i+1}:** {preview}")
+        else:
+            st.markdown(f"**A{i+1}:** {preview}")
+        st.markdown("---")
 
 
 # ----------------- Footer -----------------
