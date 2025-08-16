@@ -281,7 +281,7 @@ def build_thinking_prompt(question: str, context: str) -> List[Dict[str, str]]:
 def build_primary_prompt(context: str, question: str, lang: str) -> List[Dict[str, str]]:
     return [
         {"role": "system", "content": (f"You are BitsBuddy, a BITSian senior. Answer in {lang}. "
-                                       "Use emojis, be concise and helpful. Provide actionable steps if relevant.")},
+                                       "Use emojis, be concise and helpful. Provide actionable steps if relevant.use relevant docs only ")},
         {"role": "user", "content": scratchpad_reasoning(context, question)}
     ]
 
@@ -329,7 +329,7 @@ def vanilla_rag_answer(context: str, question: str, lang: str = "English") -> st
     """
     try:
         prompt = [
-            {"role": "system", "content": f"You are BitsBuddy, a BITSian senior. Answer in {lang}. Be concise and helpful."},
+            {"role": "system", "content": f"You are BitsBuddy, a BITSian senior. Answer in {lang}. Be concise and helpful.use only the documents provided"},
             {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}"}
         ]
         return query_models_with_fallbacks([MODEL_MID] + MODEL_FALLBACKS, prompt)
