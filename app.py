@@ -391,6 +391,12 @@ st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
+st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
+
+# Initialize chat history once
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
 # ----------------- Chat input -----------------
 if user_query := st.chat_input("Ask me about BITS Pilani anything"):
     query = user_query.strip()
@@ -412,39 +418,17 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
 
         # ----------------- Assistant response -----------------
         try:
-            with st.chat_message("assistant"):
-                thinking_placeholder = st.empty()
+            if st.session_state.get("use_advanced_rag", True):
+                thinking_prompt = build_thinking_prompt(query, context)
+                thinking_text = query_models_with_fallbacks(
+                    [MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt
+                )
+                rag_result = modular_rag_smart_answer(context, query, lang=language)
+                final_answer = rag_result.get("final", rag_result.get("error", "Sorry — something went wrong."))
+            else:
+                final_answer = vanilla_rag_answer(context, query, lang=language)
 
-                # Advanced or vanilla RAG
-                if st.session_state.get("use_advanced_rag", True):
-                    thinking_prompt = build_thinking_prompt(query, context)
-                    thinking_text = query_models_with_fallbacks(
-                        [MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt
-                    )
-
-                    # Animate "thinking"
-                    animated = ""
-                    for ch in thinking_text:
-                        animated += ch
-                        thinking_placeholder.markdown(f"**Thinking:** {animated}|")
-                        time.sleep(0.01)
-                    thinking_placeholder.markdown(f"**Thinking:** {animated}")
-
-                    rag_result = modular_rag_smart_answer(context, query, lang=language)
-                    final_answer = rag_result.get("final", rag_result.get("error", "Sorry — something went wrong."))
-                else:
-                    thinking_placeholder.markdown("⚡ Fetching quick answer...")
-                    final_answer = vanilla_rag_answer(context, query, lang=language)
-
-                # Animate assistant reply
-                animated = ""
-                for c in final_answer:
-                    animated += c
-                    thinking_placeholder.markdown(animated + "|")
-                    time.sleep(0.004)
-                thinking_placeholder.markdown(animated)
-
-            # ✅ Append to history AFTER showing
+            # ✅ Just append (don’t display here)
             st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
 
             # Save to Firebase if logged in
@@ -452,7 +436,6 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                 save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
 
         except Exception as e:
-            st.error(f"❌ Error: {e}")
             st.session_state.chat_history.append({"role": "assistant", "content": f"Error: {e}"})
 
 # ----------------- Display chat history -----------------
