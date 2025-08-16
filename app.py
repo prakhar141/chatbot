@@ -481,7 +481,7 @@ with st.sidebar:
         if len(preview) > 150:
             preview = preview[:150] + "..."
         
-         Display question/answer labels based on role
+         #Display question/answer labels based on role
         if role == "user":
             st.markdown(f"**Q{i+1}:** {preview}")
         else:
