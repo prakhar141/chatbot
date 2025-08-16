@@ -280,18 +280,30 @@ def build_thinking_prompt(question: str, context: str) -> List[Dict[str, str]]:
 
 def build_primary_prompt(context: str, question: str, lang: str) -> List[Dict[str, str]]:
     return [
-        {"role": "system", "content": (f"You are BitsBuddy, a BITSian senior. Answer in {lang}. "
-                                       "Use emojis, be concise and helpful. Provide actionable steps if relevant.use relevant docs only ")},
+        {"role": "system", "content": (
+            f"You are BitsBuddy, a BITSian senior helping only with BITS Pilani admissions. "
+            f"Answer in {lang}. 🎓 "
+            "Strict Rules:\n"
+            "1. Use ONLY the uploaded admission documents as your source.\n"
+            "2. If the question is unrelated to BITS admissions or no relevant info is in the documents, "
+            "reply ONLY with: '❌ Sorry, I can only answer questions related to BITS Pilani admissions using the uploaded documents.'\n"
+            "3. Do not guess or add external information."
+        )},
         {"role": "user", "content": scratchpad_reasoning(context, question)}
     ]
 
 def build_critic_prompt(context: str, question: str, answer: str) -> List[Dict[str, str]]:
     return [
-        {"role": "system", "content": ("You are an honest critic checking the assistant’s answer for factual errors, "
-                                       "incompleteness, or hallucinations. Keep critiques short and list any unsupported "
-                                       "claims with reasons.")},
-        {"role": "user", "content": (f"Context:\n{(context[:1500] + '...') if len(context) > 1500 else context}\n\n"
-                                     f"Question:\n{question}\n\nAnswer:\n{answer}\n\nCritique and list corrections:")}
+        {"role": "system", "content": (
+            "You are an honest critic. Check if the assistant’s answer is:\n"
+            "1. Supported by the admission documents only.\n"
+            "2. About BITS Pilani admissions only.\n"
+            "If unsupported or off-topic, point it out and suggest replacing with the refusal message."
+        )},
+        {"role": "user", "content": (
+            f"Context:\n{(context[:1500] + '...') if len(context) > 1500 else context}\n\n"
+            f"Question:\n{question}\n\nAnswer:\n{answer}\n\nCritique and list corrections:"
+        )}
     ]
 
 def build_final_prompt(context: str, question: str, answer: str, critique: str, lang: str) -> List[Dict[str, str]]:
@@ -324,12 +336,14 @@ def modular_rag_smart_answer(context: str, question: str, lang: str = "English")
     except Exception as e:
         return {"error": str(e)}
 def vanilla_rag_answer(context: str, question: str, lang: str = "English") -> str:
-    """
-    A simpler RAG pipeline: retrieve context -> generate a single direct answer.
-    """
     try:
         prompt = [
-            {"role": "system", "content": f"You are BitsBuddy, a BITSian senior. Answer in {lang}. Be concise and helpful.use only the documents provided"},
+            {"role": "system", "content": (
+                f"You are BitsBuddy, a BITSian senior. Answer ONLY if the question is about BITS Pilani admissions "
+                f"and ONLY using the provided documents. Answer in {lang}. "
+                "If the documents don’t contain an answer or the question is unrelated, reply with: "
+                "'❌ Sorry, I can only answer questions related to BITS Pilani admissions using the uploaded documents.'"
+            )},
             {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}"}
         ]
         return query_models_with_fallbacks([MODEL_MID] + MODEL_FALLBACKS, prompt)
