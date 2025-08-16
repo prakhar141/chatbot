@@ -387,16 +387,20 @@ else:
 # ----------------- Main chat handler (single unified flow) -----------------
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
-# Chat input
+# Initialize chat history once
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+# ----------------- Chat input -----------------
 if user_query := st.chat_input("Ask me about BITS Pilani anything"):
     query = user_query.strip()
     if not query:
         st.warning("Please type a question.")
     else:
-        # Append new user message
+        # Store user query
         st.session_state.chat_history.append({"role": "user", "content": query})
 
-        # Build context from retriever
+        # Try to fetch context
         try:
             docs = retriever.get_relevant_documents(query)
             context = "\n".join([doc.page_content for doc in docs]) if docs else (
@@ -406,16 +410,19 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
             context = st.session_state.get("uploaded_content", "") or ""
             st.warning(f"Retriever failed: {e}")
 
-        # Assistant response
+        # ----------------- Assistant response -----------------
         try:
             with st.chat_message("assistant"):
                 thinking_placeholder = st.empty()
 
+                # Advanced or vanilla RAG
                 if st.session_state.get("use_advanced_rag", True):
                     thinking_prompt = build_thinking_prompt(query, context)
-                    thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
+                    thinking_text = query_models_with_fallbacks(
+                        [MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt
+                    )
 
-                    # Show "thinking"
+                    # Animate "thinking"
                     animated = ""
                     for ch in thinking_text:
                         animated += ch
@@ -423,14 +430,13 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                         time.sleep(0.01)
                     thinking_placeholder.markdown(f"**Thinking:** {animated}")
 
-                    # RAG answer
                     rag_result = modular_rag_smart_answer(context, query, lang=language)
                     final_answer = rag_result.get("final", rag_result.get("error", "Sorry — something went wrong."))
                 else:
                     thinking_placeholder.markdown("⚡ Fetching quick answer...")
                     final_answer = vanilla_rag_answer(context, query, lang=language)
 
-                # Animate final answer
+                # Animate assistant reply
                 animated = ""
                 for c in final_answer:
                     animated += c
@@ -438,23 +444,21 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                     time.sleep(0.004)
                 thinking_placeholder.markdown(animated)
 
-                # Append assistant reply to history
-                st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
+            # ✅ Append to history AFTER showing
+            st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
 
-                # Save to Firebase if logged in
-                if "uid" in st.session_state:
-                    save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
+            # Save to Firebase if logged in
+            if "uid" in st.session_state:
+                save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
 
         except Exception as e:
             st.error(f"❌ Error: {e}")
             st.session_state.chat_history.append({"role": "assistant", "content": f"Error: {e}"})
 
-
 # ----------------- Display chat history -----------------
 for chat in st.session_state.chat_history:
     with st.chat_message("user" if chat["role"] == "user" else "assistant"):
         st.markdown(chat["content"])
-
 # ----------------- Sidebar history preview -----------------
 
 with st.sidebar:
