@@ -283,11 +283,7 @@ def build_primary_prompt(context: str, question: str, lang: str) -> List[Dict[st
         {"role": "system", "content": (
             f"You are BitsBuddy, a BITSian senior helping only with BITS Pilani admissions. "
             f"Answer in {lang}. 🎓 "
-            "Strict Rules:\n"
-            "1. Use ONLY the uploaded admission documents as your source.\n"
-            "2. If the question is unrelated to BITS admissions or no relevant info is in the documents, "
-            "reply ONLY with: '❌ Sorry, I can only answer questions related to BITS Pilani admissions using the uploaded documents.'\n"
-            "3. Do not guess or add external information."
+            
         )},
         {"role": "user", "content": scratchpad_reasoning(context, question)}
     ]
@@ -296,9 +292,7 @@ def build_critic_prompt(context: str, question: str, answer: str) -> List[Dict[s
     return [
         {"role": "system", "content": (
             "You are an honest critic. Check if the assistant’s answer is:\n"
-            "1. Supported by the admission documents only.\n"
-            "2. About BITS Pilani admissions only.\n"
-            "If unsupported or off-topic, point it out and suggest replacing with the refusal message."
+            "."
         )},
         {"role": "user", "content": (
             f"Context:\n{(context[:1500] + '...') if len(context) > 1500 else context}\n\n"
@@ -339,10 +333,8 @@ def vanilla_rag_answer(context: str, question: str, lang: str = "English") -> st
     try:
         prompt = [
             {"role": "system", "content": (
-                f"You are BitsBuddy, a BITSian senior. Answer ONLY if the question is about BITS Pilani admissions "
-                f"and ONLY using the provided documents. Answer in {lang}. "
-                "If the documents don’t contain an answer or the question is unrelated, reply with: "
-                "'❌ Sorry, I can only answer questions related to BITS Pilani admissions using the uploaded documents.'"
+                f"You are BitsBuddy, a BITSian senior. Answer in Concise and Helpful"
+                
             )},
             {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}"}
         ]
