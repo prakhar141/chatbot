@@ -460,9 +460,9 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                 st.session_state.just_streamed = True
 
 # ----------------- Display older chat history -----------------
-for chat in st.session_state.chat_history:
-    with st.chat_message("user" if chat.get("role") == "user" else "assistant"):
-        st.markdown(chat.get("content", ""))
+#for chat in st.session_state.chat_history:
+ #   with st.chat_message("user" if chat.get("role") == "user" else "assistant"):
+ #       st.markdown(chat.get("content", ""))
 
 
 # ----------------- Sidebar history preview -----------------
