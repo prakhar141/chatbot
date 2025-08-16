@@ -393,17 +393,16 @@ else:
     st.stop()
 
 # ----------------- Main chat handler (single unified flow) -----------------
+# ----------------- Main chat handler (single unified flow) -----------------
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
-
-# Chat input - single place that drives everything
+# Chat input
 if user_query := st.chat_input("Ask me about BITS Pilani anything"):
     query = user_query.strip()
     if not query:
         st.warning("Please type a question.")
     else:
-        # Append user message to history
-        st.session_state.chat_history.append({"role": "user", "content": query})
+        # Display user message immediately (without appending yet)
         with st.chat_message("user"):
             st.markdown(query)
 
@@ -422,8 +421,7 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
             thinking_placeholder = st.empty()
             try:
                 if st.session_state.get("use_advanced_rag", True):
-                    # ---------------- Advanced RAG Mode ----------------
-                    # Thinking monologue
+                    # Advanced RAG mode with thinking monologue
                     thinking_prompt = build_thinking_prompt(query, context)
                     thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
 
@@ -437,42 +435,28 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                     time.sleep(0.25)
                     thinking_placeholder.markdown("🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
 
-                    # Full pipeline with self-critique
                     rag_result = modular_rag_smart_answer(context, query, lang=language)
                     final_answer = rag_result.get("final", rag_result.get("error", "Sorry — something went wrong."))
-
                 else:
-                    # ---------------- Vanilla RAG Mode ----------------
+                    # Vanilla RAG mode
                     thinking_placeholder.markdown("⚡ Fetching quick answer...")
                     final_answer = vanilla_rag_answer(context, query, lang=language)
                     rag_result = {"final": final_answer}
 
-                # Store chat record
-                chat_record = {
-                    "question": query,
-                    "thinking": rag_result.get("thinking", ""),
-                    "primary": rag_result.get("primary", ""),
-                    "critique": rag_result.get("critique", ""),
-                    "final": rag_result.get("final", rag_result.get("error", "Sorry — something went wrong.")),
-                    "language": language
-                }
-
-                # Display answer
-                if "error" in rag_result:
-                    thinking_placeholder.markdown(f"❌ Error while generating answer: {rag_result['error']}")
+                # Display assistant's answer
+                if st.session_state.get("use_advanced_rag", True):
+                    animated = ""
+                    for c in final_answer:
+                        animated += c
+                        thinking_placeholder.markdown(animated + "|")
+                        time.sleep(0.004)
+                    thinking_placeholder.markdown(animated)
                 else:
-                    if st.session_state.get("use_advanced_rag", True):
-                        animated = ""
-                        for c in final_answer:
-                            animated += c
-                            thinking_placeholder.markdown(animated + "|")
-                            time.sleep(0.004)
-                        thinking_placeholder.markdown(animated)
-                    else:
-                        thinking_placeholder.markdown(final_answer)
+                    thinking_placeholder.markdown(final_answer)
 
-                # Save to history
-                st.session_state.chat_history.append({"role": "assistant", "content": chat_record["final"]})
+                # Append both user and assistant messages at once
+                st.session_state.chat_history.append({"role": "user", "content": query})
+                st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
                 st.session_state.just_streamed = True
 
                 # Save to Firebase
@@ -483,18 +467,12 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                 thinking_placeholder.markdown(f"❌ Error: {e}")
                 st.session_state.chat_history.append({"role": "assistant", "content": f"Error: {e}"})
                 st.session_state.just_streamed = True
-# ----------------- Display chat history (non-streamed older messages) -----------------
-if st.session_state.just_streamed and len(st.session_state.chat_history) > 0:
-    history_to_show = st.session_state.chat_history[:-1]
-else:
-    history_to_show = st.session_state.chat_history
 
-for chat in (history_to_show):
+# ----------------- Display older chat history -----------------
+for chat in st.session_state.chat_history:
     with st.chat_message("user" if chat.get("role") == "user" else "assistant"):
         st.markdown(chat.get("content", ""))
 
-if st.session_state.just_streamed:
-    st.session_state.just_streamed = False
 
 # ----------------- Sidebar history preview -----------------
 
