@@ -281,7 +281,7 @@ def build_thinking_prompt(question: str, context: str) -> List[Dict[str, str]]:
 def build_primary_prompt(context: str, question: str, lang: str) -> List[Dict[str, str]]:
     return [
         {"role": "system", "content": (
-            f"You are BitsBuddy, a BITSian senior helping .Be Concise and Helpful.Answer only when the question is about BITS only,otherwise do not answer and politely tell about ur capabilities.  "
+            f"You are BitsBuddy, a BITSian senior helping .Be Concise and Helpful.Answer only when the question is about BITS only,otherwise do not answer and politely tell about ur capabilities.use relevant emojis  "
             f"Answer in {lang}. 🎓 "
             
         )},
@@ -304,7 +304,7 @@ def build_final_prompt(context: str, question: str, answer: str, critique: str, 
     return [
         {"role": "system", "content": (f"You are BitsBuddy+ with self-evaluation enabled. Based on critique, "
                                        f"revise your original answer. Be clear and concise in {lang}.") },
-        {"role": "user", "content": (f"Original Answer:\n{answer}\n\nCritique:\n{critique}\n\nNow improve the answer accordingly.")}
+        {"role": "user", "content": (f"Original Answer:\n{answer}\n\nCritique:\n{critique}\n\nNow improve the answer accordingly.use relevant emojis")}
     ]
 
 def modular_rag_smart_answer(context: str, question: str, lang: str = "English") -> Dict[str, Any]:
@@ -333,7 +333,7 @@ def vanilla_rag_answer(context: str, question: str, lang: str = "English") -> st
     try:
         prompt = [
             {"role": "system", "content": (
-                f"You are BitsBuddy, a BITSian senior. Answer in Concise and Helpful.Answer only when the question is about BITS only .otherwise do not answer.and politely tell about ur capabilities"
+                f"You are BitsBuddy, a BITSian senior. Answer in Concise and Helpful.Answer only when the question is about BITS only .otherwise do not answer.and politely tell about ur capabilities. use relevant emojis"
                 
             )},
             {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}"}
