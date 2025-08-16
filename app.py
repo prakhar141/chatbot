@@ -281,7 +281,7 @@ def build_thinking_prompt(question: str, context: str) -> List[Dict[str, str]]:
 def build_primary_prompt(context: str, question: str, lang: str) -> List[Dict[str, str]]:
     return [
         {"role": "system", "content": (
-            f"You are BitsBuddy, a BITSian senior helping only with BITS Pilani admissions. "
+            f"You are BitsBuddy, a BITSian senior helping .Be Concise and Helpful.Answer only when the question is about BITS.otherwise do not answer.  "
             f"Answer in {lang}. 🎓 "
             
         )},
@@ -291,7 +291,7 @@ def build_primary_prompt(context: str, question: str, lang: str) -> List[Dict[st
 def build_critic_prompt(context: str, question: str, answer: str) -> List[Dict[str, str]]:
     return [
         {"role": "system", "content": (
-            "You are an honest critic. Check if the assistant’s answer is:\n"
+            "You are an honest critic. Check if the assistant’s answer is realted to bits pilani"
             "."
         )},
         {"role": "user", "content": (
@@ -333,7 +333,7 @@ def vanilla_rag_answer(context: str, question: str, lang: str = "English") -> st
     try:
         prompt = [
             {"role": "system", "content": (
-                f"You are BitsBuddy, a BITSian senior. Answer in Concise and Helpful"
+                f"You are BitsBuddy, a BITSian senior. Answer in Concise and Helpful.Answer only when the question is about BITS.otherwise do not answer. "
                 
             )},
             {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}"}
