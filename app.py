@@ -385,7 +385,6 @@ else:
     st.stop()
 
 # ----------------- Main chat handler (single unified flow) -----------------
-st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
 # Initialize chat history once
 if "chat_history" not in st.session_state:
