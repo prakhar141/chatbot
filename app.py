@@ -298,7 +298,7 @@ def query_models_balanced(messages: List[Dict[str, str]]) -> str:
     raise RuntimeError(f"All models failed. Last error: {last_error}")
 
 # ----------------- Simple RAG answer -----------------
-def display_typing_animation(text: str, delay: float = 0.003):
+def display_typing_animation(text: str, delay: float = 0.0003):
     """Displays text with a typing effect inside Streamlit."""
     placeholder = st.empty()
     displayed = ""
