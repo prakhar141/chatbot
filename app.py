@@ -93,7 +93,6 @@ with st.sidebar:
         st.session_state.just_streamed = False
         st.rerun()
 
-    uploaded_file = st.file_uploader("📄 Upload PDF or image", type=["pdf", "png", "jpg", "jpeg"])
     language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
     st.markdown("---")
     st.checkbox("Enable Persistent SQLite Cache", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
@@ -185,32 +184,6 @@ def load_vector_db(folder="."):
 
 retriever = load_vector_db()
 
-# ----------------- File uploads handling -----------------
-uploaded_content = ""
-if 'uploaded_content' not in st.session_state:
-    st.session_state.uploaded_content = ""
-
-if uploaded_file:
-    file_type = uploaded_file.type
-    if file_type == "application/pdf":
-        try:
-            with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
-                uploaded_content = "\n".join(page.get_text() for page in doc)
-                st.session_state.uploaded_content = uploaded_content
-        except Exception as e:
-            st.warning(f"PDF read error: {e}")
-    elif "image" in file_type:
-        try:
-            img = Image.open(uploaded_file)
-            st.session_state.uploaded_content = "[Image content; enable OCR to extract text]"
-        except Exception as e:
-            st.warning(f"Image read error: {e}")
-
-    if st.session_state.uploaded_content and st.session_state.uploaded_content.strip():
-        st.success("✅ Extracted content from file.")
-        st.text_area("📄 Preview (first 1000 chars)", st.session_state.uploaded_content[:1000], height=200)
-    else:
-        st.warning("⚠️ Couldn't extract readable text from the file.")
 
 # ----------------- OpenRouter helpers (unchanged) -----------------
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
