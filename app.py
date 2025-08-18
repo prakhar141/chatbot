@@ -308,6 +308,8 @@ def display_typing_animation(text: str, delay: float = 0.0003):
         time.sleep(delay)
     placeholder.markdown(displayed)
 
+import logging
+
 def vanilla_rag_answer(context: str, question: str, lang: str = "English") -> str:
     try:
         prompt = [
@@ -320,9 +322,17 @@ def vanilla_rag_answer(context: str, question: str, lang: str = "English") -> st
         ]
         # ✅ Use balanced rotation instead of single-model fallbacks
         return query_models_balanced(prompt)
-    except Exception as e:
-        return f"Error in Vanilla RAG: {e}"
 
+    except Exception as e:
+        # Log full traceback to server logs for debugging
+        logging.exception("vanilla_rag_answer failed")
+
+        # Try to detect rate-limit vs generic error (best-effort)
+        text = str(e).lower()
+        if "429" in text or "rate" in text or "too many" in text or "rate-limit" in text:
+            return "⚠️ The server is busy right now (rate-limited). Please wait a few seconds and try again."
+        # Generic friendly fallback for other errors
+        return "⚠️ I'm having trouble connecting to the server right now. Please try again shortly."
 # ----------------- Session init -----------------
 if "authenticated" in st.session_state and st.session_state["authenticated"]:
     if "chat_history" not in st.session_state:
@@ -391,6 +401,11 @@ if user_query := st.chat_input("Ask me about BITS Pilani"):
                 save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
 
         except Exception as e:
+            
+            st.session_state.chat_history.append({
+        "role": "assistant",
+        "content": "⚠️ Oops, I’m having trouble connecting to the server. Please wait a few seconds and try again."
+    })
             st.session_state.chat_history.append({"role": "assistant", "content": f"Error: {e}"})
 
 # ----------------- Display chat history -----------------
