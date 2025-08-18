@@ -326,7 +326,6 @@ else:
     login_screen()
     st.stop()
 
-# ----------------- Main chat handler -----------------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
@@ -347,23 +346,29 @@ if user_query := st.chat_input("Ask me about BITS Pilani"):
             st.warning(f"Retriever failed: {e}")
 
         try:
-            with st.spinner("🤔 Thinking..."):
-                final_answer = vanilla_rag_answer(context, query, lang=language)
+            # 🔹 Show animation while waiting
+            #typing_bubbles(duration=3)
+
+            final_answer = vanilla_rag_answer(context, query, lang=language)
+
+            # 🔹 Store assistant response in history
             st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
-            with st.chat_message("assistant"):
-                display_typing_animation(final_answer)
 
             if "uid" in st.session_state:
                 save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
+
         except Exception as e:
             st.session_state.chat_history.append({"role": "assistant", "content": f"Error: {e}"})
 
 # ----------------- Display chat history -----------------
-for chat in st.session_state.chat_history:
-    if chat["role"] == "user":  # ✅ only show user messages here
-        with st.chat_message("user"):
+for i, chat in enumerate(st.session_state.chat_history):
+    with st.chat_message("user" if chat["role"] == "user" else "assistant"):
+        if i == len(st.session_state.chat_history) - 1 and chat["role"] == "assistant":
+            # 🔹 Latest assistant message → typing effect
+            display_typing_animation(chat["content"])
+        else:
+            # 🔹 Older messages → show instantly
             st.markdown(chat["content"])
-
 # ----------------- Sidebar history preview -----------------
 with st.sidebar:
     st.subheader("📂 Chat History")
