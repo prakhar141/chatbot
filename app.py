@@ -67,7 +67,7 @@ with col1:
     st.image("bits_logo.jpg", width=60)  # smaller logo size
 
 with col2:
-    st.title(" BITS Buddy")
+    st.title("BITS Buddy")
 
 st.markdown("Ask me anything about BITS Pilani")
 
@@ -183,18 +183,39 @@ def query_openrouter(model: str, messages: List[Dict[str, str]]) -> str:
 # ----------------- Prompt builder -----------------
 def build_prompt(context: str, question: str, lang: str) -> List[Dict[str, str]]:
     return [
-        {"role": "system", "content": f"You are BitsBuddy, a helpful BITS Pilani assistant. Answer in {lang}."},
+        {"role": "system", "content": f"You are BitsBuddy, a helpful BITS Pilani assistant.Answer questions related to BITS only,otherwise politely tell ur capabilities.use relevant emojis  Answer in {lang}."},
         {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"}
     ]
 
 # ----------------- Session -----------------
+# --- Login Required ---
 if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = True  # skip login for now
-    st.session_state["user_name"] = "BITSian"
-    st.session_state["user_uid"] = "local_user"
-    st.session_state["chat_history"] = []
+    st.session_state["authenticated"] = False
 
-st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
+if not st.session_state["authenticated"]:
+    st.title("🔐 Login to BITS Buddy")
+
+    with st.form("login_form"):
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        login_btn = st.form_submit_button("Login")
+
+        if login_btn:
+            # Simple check (replace with Firebase/DB verification later)
+            if username == "BITSian" and password == "pass123":
+                st.session_state["authenticated"] = True
+                st.session_state["user_name"] = username
+                st.session_state["user_uid"] = f"user_{username}"
+                st.session_state["chat_history"] = []
+                st.success("✅ Login successful!")
+                st.experimental_rerun()
+            else:
+                st.error("❌ Invalid credentials. Please try again.")
+
+else:
+    st.title(f"Welcome {st.session_state['user_name']} 👋")
+
+
 
 # ----------------- Main Chat -----------------
 if user_query := st.chat_input("Ask me about BITS Pilani anything"):
