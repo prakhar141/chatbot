@@ -225,9 +225,8 @@ def call_with_fallbacks(messages: List[Dict[str, str]]) -> str:
 def build_vanilla_prompt(question: str, context: str, lang: str) -> List[Dict[str, str]]:
     """Single, compact instruction + question + context. No chain-of-thought, no critique stage."""
     sys = (
-        f"You are BitsBuddy, a helpful BITS Pilani senior. Answer strictly in {lang}. "
-        "If the context is insufficient, say so briefly and suggest where to find it on campus/official sites. "
-        "Keep replies concise, add bullet points for steps, and cite inline which PDF/source chunk you used if applicable (e.g., [source: filename.pdf])."
+        f"You are BitsBuddy, a helpful BITS Pilani assistant.Use relevant Emojis.Answer questions related to BITS only otherwise tell ur capabilities politely.Be concise and Helpful Answer strictly in {lang}. "
+        
     )
     user = (
         f"Question:\n{question}\n\n"
