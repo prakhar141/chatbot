@@ -807,8 +807,10 @@ with st.sidebar:
 # ===================== Assistant-Chosen Controls (Main) ===============
 st.markdown("### 🔧 Assistant-chosen Controls")
 plan_col1, plan_col2 = st.columns([4, 1])
+
 with plan_col1:
     st.caption("The assistant decides what to show here based on app state and your needs.")
+
 with plan_col2:
     if st.button("♻️ Recompute Controls"):
         plan = get_control_plan(force_refresh=True)
@@ -819,7 +821,10 @@ with plan_col2:
 # Apply plan defaults to session state
 # Persistent cache toggle
 if "enable_sqlite" not in st.session_state:
-    st.session_state.enable_sqlite = plan.get("enable_persistent_cache", CFG.enable_persistent_cache_default)
+    st.session_state.enable_sqlite = plan.get(
+        "enable_persistent_cache",
+        CFG.enable_persistent_cache_default,
+    )
 
 control_container = st.container()
 with control_container:
@@ -827,8 +832,15 @@ with control_container:
 
     # Language (if chosen)
     if plan.get("show_language", True):
-        default_idx = LANG_OPTIONS.index(plan.get("language_default", "English"))
-        language = ui_cols[0].selectbox("🌐 Response Language", LANG_OPTIONS, index=default_idx, key="language_select")
+        default_idx = LANG_OPTIONS.index(
+            plan.get("language_default", "English")
+        )
+        language = ui_cols[0].selectbox(
+            "🌐 Response Language",
+            LANG_OPTIONS,
+            index=default_idx,
+            key="language_select",
+        )
     else:
         # hidden but used default
         language = plan.get("language_default", "English")
@@ -836,41 +848,63 @@ with control_container:
 
     # Persistent cache toggle (if chosen)
     if plan.get("show_cache_toggle", False):
-        ui_cols[1].checkbox("💾 Use Persistent Cache (SQLite)", value=st.session_state.enable_sqlite, key="enable_sqlite")
+        ui_cols[1].checkbox(
+            "💾 Use Persistent Cache (SQLite)",
+            value=st.session_state.enable_sqlite,
+            key="enable_sqlite",
+        )
 
     # RAG advanced settings (if chosen)
     if plan.get("show_rag_settings", bool(vectordb)):
         with st.expander("🔍 Advanced RAG Settings"):
-            st.session_state.k_val = st.slider("Top-K Chunks", min_value=1, max_value=12, value=int(plan.get("suggested_k", CFG.k_val)), step=1)
-            st.session_state.score_threshold = st.slider("Relevance Threshold (0-1)", min_value=0.0, max_value=1.0, value=float(plan.get("score_threshold", CFG.score_threshold)), step=0.05)
+            st.session_state.k_val = st.slider(
+                "Top-K Chunks",
+                min_value=1,
+                max_value=12,
+                value=int(plan.get("suggested_k", CFG.k_val)),
+                step=1,
+            )
+            st.session_state.score_threshold = st.slider(
+                "Relevance Threshold (0-1)",
+                min_value=0.0,
+                max_value=1.0,
+                value=float(plan.get("score_threshold", CFG.score_threshold)),
+                step=0.05,
+            )
 
             cols = st.columns(2)
-            if plan.get("allow_rebuild_index", True):
-    if cols[0].button("Rebuild Index"):
-        try:
-            global vectordb   # declare first!
-            build_or_load_vectordb.clear()
-            vectordb = build_or_load_vectordb(
-                CFG.pdf_docs_folder,
-                CFG.faiss_index_dir,
-                CFG.embed_model,
-                CFG.faiss_allow_deserialization,
-            )
-            st.success("Index rebuild requested. It will be used on next query.")
-        except Exception:
-            logger.exception("Failed to rebuild index")
-            st.error("Unable to rebuild the index. Check logs.")
 
+            # Rebuild index
+            if plan.get("allow_rebuild_index", True):
+                if cols[0].button("Rebuild Index"):
+                    try:
+                        global vectordb  # declare first!
+                        build_or_load_vectordb.clear()
+                        vectordb = build_or_load_vectordb(
+                            CFG.pdf_docs_folder,
+                            CFG.faiss_index_dir,
+                            CFG.embed_model,
+                            CFG.faiss_allow_deserialization,
+                        )
+                        st.success(
+                            "Index rebuild requested. It will be used on next query."
+                        )
+                    except Exception:
+                        logger.exception("Failed to rebuild index")
+                        st.error("Unable to rebuild the index. Check logs.")
+
+            # Clear cache
             if plan.get("allow_clear_cache", True):
                 if cols[1].button("Clear Persistent Cache"):
                     if sql_cache:
                         sql_cache.clear()
                         st.success("Persistent cache cleared.")
 
-    
 # Guard: OpenRouter key
 if not CFG.openrouter_api_key:
-    st.warning("OpenRouter API key is not set. Set OPENROUTER_API_KEY in your environment.")
+    st.warning(
+        "OpenRouter API key is not set. Set OPENROUTER_API_KEY in your environment."
+    )
 
 # ============================ Main Chat ==============================
 def display_typing_animation(text: str, placeholder, chunk_size: int = 60, delay: float = 0.02):
