@@ -1,10 +1,3 @@
-# cleaned_buddy_vanilla.py
-# ──────────────────────────────────────────────────────────────────────────────
-# A simplified, "vanilla RAG" version of BITS Buddy.
-# Replaces the multi-stage thinking/critic/final pipeline with a single-pass RAG
-# call: (retrieve → build prompt → call model → answer). Keeps Firebase auth,
-# chat history, FAISS retriever, and lightweight caching.
-# ──────────────────────────────────────────────────────────────────────────────
 
 import os
 import time
@@ -59,7 +52,16 @@ realtime_db = db.reference('/')
 
 # ----------------- Streamlit Page -----------------
 st.set_page_config(page_title="BITS Buddy", layout="wide")
-st.title("🎓 BITS Buddy")
+st.markdown(
+    """
+    <div style="display: flex; align-items: center;">
+        <img src="bits_logo.jpg" alt="BITS Logo" style="width:60px; height:60px; margin-right:15px;">
+        <h1 style="margin: 0;">BITS Buddy</h1>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
 st.markdown("Ask me anything about BITS Pilani")
 
 # ----------------- Sidebar -----------------
@@ -79,7 +81,7 @@ with st.sidebar:
         "English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"
     ])
     st.markdown("---")
-    st.checkbox("Enable Persistent SQLite Cache", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
+    st.checkbox("For fast loading", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
 
 # ----------------- SQLite Cache -----------------
 def init_sqlite(db_path: str = SQLITE_DB_PATH):
@@ -400,11 +402,26 @@ with st.sidebar:
 # ----------------- Footer -----------------
 st.markdown(
     """
-    <hr style="margin-top: 40px;">
-    <div style='text-align: center; color: #888; font-size: 14px;'>
+    <style>
+        .footer {
+            background: linear-gradient(to right, red 33.3%, lightblue 33.3% 66.6%, yellow 66.6%);
+            padding: 20px 0;
+            text-align: center;
+            color: #222;
+            font-size: 14px;
+        }
+        .footer a {
+            color: inherit;
+            text-decoration: none;
+            font-weight: bold;
+        }
+    </style>
+
+    <div class="footer">
         Built with ❤️ by <b>BITS Pilani</b> · Pilani Campus ·
         <br>📬 Email: <a href="mailto:f20240347@pilani.bits-pilani.ac.in">Contact us</a>
     </div>
     """,
     unsafe_allow_html=True,
 )
+
