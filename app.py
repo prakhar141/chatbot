@@ -191,11 +191,33 @@ def load_vector_db(folder="."):
 retriever = load_vector_db()
 
 # ----------------- OpenRouter helpers -----------------
+# ----------------- OpenRouter helpers (Improved) -----------------
+import itertools
+import threading
+
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 HEADERS_BASE = {"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"}
 
-def query_openrouter_with_backoff(model: str, messages: List[Dict[str, str]], max_retries: int = 4, timeout: int = 30) -> str:
+# 🔹 Local rate limiter (per process)
+_last_call = 0
+_rate_lock = threading.Lock()
+MIN_DELAY = 1.5  # seconds between requests to avoid bursts
+
+def rate_limited_request():
+    """Ensure a minimum delay between API calls (global lock)."""
+    global _last_call
+    with _rate_lock:
+        now = time.time()
+        wait = MIN_DELAY - (now - _last_call)
+        if wait > 0:
+            time.sleep(wait)
+        _last_call = time.time()
+
+def query_openrouter_with_backoff(model: str, messages: List[Dict[str, str]], max_retries: int = 6, timeout: int = 30) -> str:
+    """Query OpenRouter with retry-after support, exponential backoff, and caching."""
     key = make_cache_key(model, messages)
+
+    # 🔹 First check cache
     cached = _cache_get(key)
     if cached:
         return cached
@@ -207,50 +229,64 @@ def query_openrouter_with_backoff(model: str, messages: List[Dict[str, str]], ma
 
     payload = {"model": model, "messages": messages}
     backoff = 1.0
+
     for attempt in range(max_retries):
         try:
+            # 🔹 Apply rate limiting
+            rate_limited_request()
+
             r = requests.post(OPENROUTER_URL, headers=HEADERS_BASE, json=payload, timeout=timeout)
+
+            # 🔹 Handle rate limiting errors
             if r.status_code == 429:
-                raise requests.HTTPError("429")
+                retry_after = int(r.headers.get("Retry-After", backoff))
+                time.sleep(retry_after)
+                backoff *= 2
+                continue  
+
             r.raise_for_status()
             data = r.json()
+
+            # 🔹 Extract assistant text
             content = None
             if isinstance(data.get("choices"), list) and data["choices"]:
-                c = data["choices"][0]
-                msg = c.get("message") or c.get("delta") or c
+                msg = data["choices"][0].get("message") or data["choices"][0]
                 content = msg.get("content") if isinstance(msg, dict) else str(msg)
             elif data.get("text"):
-                content = data.get("text")
+                content = data["text"]
             else:
                 content = json.dumps(data)
 
+            # 🔹 Cache response
             _cache_set(key, content)
             if st.session_state.get("enable_sqlite", ENABLE_PERSISTENT_CACHE) and _sql_conn:
                 try:
                     sql_set(key, model, messages, content)
                 except Exception:
                     pass
+
             return content
-        except requests.HTTPError as e:
-            if "429" in str(e):
-                raise
+
+        except requests.RequestException as e:
             if attempt == max_retries - 1:
-                raise
+                raise RuntimeError(f"OpenRouter request failed after retries: {e}")
             time.sleep(backoff)
             backoff *= 2
-        except Exception as e:
-            if attempt == max_retries - 1:
-                raise
-            time.sleep(backoff)
-            backoff *= 2
+
     raise RuntimeError("Failed to get response from OpenRouter after retries")
 
-def query_models_with_fallbacks(models: List[str], messages: List[Dict[str, str]]) -> str:
+# 🔹 Round-robin model cycling (load balancing)
+_model_cycle = itertools.cycle([MODEL_MID, MODEL_CHEAP, MODEL_HIGH])
+
+def query_models_balanced(messages: List[Dict[str, str]]) -> str:
+    """Rotate between models to balance load, retry on failure."""
     last_error = None
-    for m in models:
+    for _ in range(3):  # try up to 3 different models in rotation
+        model = next(_model_cycle)
         try:
-            return query_openrouter_with_backoff(m, messages)
+            return query_openrouter_with_backoff(model, messages)
         except Exception as e:
+            st.warning(f"{model} failed: {e}")
             last_error = e
             continue
     raise RuntimeError(f"All models failed. Last error: {last_error}")
