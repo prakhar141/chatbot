@@ -925,49 +925,46 @@ if "score_threshold" not in st.session_state:
     st.session_state.score_threshold = float(plan.get("score_threshold", CFG.score_threshold))
 if "language_select" not in st.session_state:
     st.session_state.language_select = plan.get("language_default", "English")
+# ========================================
+# Chat input + Assistant Response
+# ========================================
 
-if user_query := st.chat_input("Ask me about BITS Pilani"):
+if user_query := st.chat_input("Ask me about BITS Pilani anything"):
     query = user_query.strip()
     if not query:
-        pass
-    elif len(query) > CFG.max_user_question_chars:
-        st.warning(f"Your question is too long. Please limit to {CFG.max_user_question_chars} characters.")
+        st.warning("Please type a question.")
     else:
-        uid = st.session_state.get("user_uid", "anonymous")
-        if not can_user_make_request(uid, min_interval=1.5):
-            st.warning("You're sending requests too quickly. Please wait a moment and try again.")
+        # Append user message to history
+        st.session_state.chat_history.append({"role": "user", "content": query})
+
+        # ✅ Ensure vectordb is loaded before using
+        docs = []
+        vectordb = load_vector_db()
+        if vectordb is not None:
+            docs = query_vector_db(query, k=5)
         else:
-            # Append user message
-            st.session_state.chat_history.append({"role": "user", "content": query})
-            try:
-                # Retrieve context with improved scoring
-                k = int(st.session_state.get("k_val", CFG.k_val))
-                threshold = float(st.session_state.get("score_threshold", CFG.score_threshold))
-                results = rag_retrieve(query, k=k, threshold=threshold)
-                context, sources = join_context(results, max_chars=CFG.max_context_chars)
+            st.warning("No knowledge base found. Please upload documents first.")
 
-                # Build messages with trimmed memory
-                language = st.session_state.get("language_select", plan.get("language_default", "English"))
-                messages = build_prompt(context, query, language, st.session_state.chat_history)
+        # Format retrieved context
+        context = "\n".join([d.page_content for d in docs]) if docs else ""
 
-                # Get LLM answer
-                answer = query_balanced(messages)
+        # Build prompt for assistant
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"Context:\n{context}\n\nQuery:\n{query}"}
+        ]
 
-                # Append sources footer if any
-                if sources:
-                    footer = "\n\nSources: " + ", ".join(sorted(set(sources)))
-                    answer = answer + footer
+        # Get response from assistant
+        with st.spinner("Thinking..."):
+            response = generate_with_fallback(messages)
 
-                st.session_state.chat_history.append({"role": "assistant", "content": answer})
+        # Append assistant response
+        st.session_state.chat_history.append({"role": "assistant", "content": response})
 
-                # Persist if possible
-                if st.session_state.get("user_uid"):
-                    save_user_chat_history(st.session_state["user_uid"], st.session_state.chat_history)
-
-            except Exception as e:
-                logger.exception("Unhandled exception during chat processing")
-                msg = friendly_error(e)
-                st.session_state.chat_history.append({"role": "assistant", "content": msg})
+        # Display updated chat history
+        for msg in st.session_state.chat_history:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
 
 # Display history (stable animation for last assistant message)
 for i, chat in enumerate(st.session_state.chat_history):
