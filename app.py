@@ -24,7 +24,6 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
 MODEL_CHEAP = os.getenv("MODEL_CHEAP") or "deepseek/deepseek-r1:free"
 MODEL_MID = os.getenv("MODEL_MID") or "openai/gpt-oss-20b:free"
 MODEL_HIGH = os.getenv("MODEL_HIGH") or "deepseek/deepseek-r1-0528:free"
-MODEL_FALLBACKS = [MODEL_MID, MODEL_CHEAP]
 
 EMBED_MODEL = os.getenv("EMBED_MODEL") or "sentence-transformers/all-MiniLM-L6-v2"
 K_VAL = int(os.getenv("K_VAL") or 4)
@@ -190,7 +189,6 @@ def load_vector_db(folder="."):
 
 retriever = load_vector_db()
 
-# ----------------- OpenRouter helpers -----------------
 # ----------------- OpenRouter helpers (Improved) -----------------
 import itertools
 import threading
@@ -199,9 +197,10 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 HEADERS_BASE = {"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"}
 
 # 🔹 Local rate limiter (per process)
-_last_call = 0
+_last_call = 0.0
 _rate_lock = threading.Lock()
-MIN_DELAY = 1.5  # seconds between requests to avoid bursts
+# Make this configurable via env; default 1.5s between calls
+MIN_DELAY = float(os.getenv("OPENROUTER_MIN_DELAY", "1.5"))
 
 def rate_limited_request():
     """Ensure a minimum delay between API calls (global lock)."""
@@ -214,7 +213,7 @@ def rate_limited_request():
         _last_call = time.time()
 
 def query_openrouter_with_backoff(model: str, messages: List[Dict[str, str]], max_retries: int = 6, timeout: int = 30) -> str:
-    """Query OpenRouter with retry-after support, exponential backoff, and caching."""
+    """Query OpenRouter with Retry-After support, exponential backoff, and caching."""
     key = make_cache_key(model, messages)
 
     # 🔹 First check cache
@@ -239,10 +238,15 @@ def query_openrouter_with_backoff(model: str, messages: List[Dict[str, str]], ma
 
             # 🔹 Handle rate limiting errors
             if r.status_code == 429:
-                retry_after = int(r.headers.get("Retry-After", backoff))
-                time.sleep(retry_after)
-                backoff *= 2
-                continue  
+                # Respect server guidance if available
+                retry_after_raw = r.headers.get("Retry-After")
+                try:
+                    retry_after = float(retry_after_raw) if retry_after_raw is not None else backoff
+                except ValueError:
+                    retry_after = backoff
+                time.sleep(max(0.0, retry_after))
+                backoff = min(backoff * 2, 60.0)  # cap backoff
+                continue
 
             r.raise_for_status()
             data = r.json()
@@ -250,7 +254,8 @@ def query_openrouter_with_backoff(model: str, messages: List[Dict[str, str]], ma
             # 🔹 Extract assistant text
             content = None
             if isinstance(data.get("choices"), list) and data["choices"]:
-                msg = data["choices"][0].get("message") or data["choices"][0]
+                c0 = data["choices"][0]
+                msg = c0.get("message") or c0.get("delta") or c0
                 content = msg.get("content") if isinstance(msg, dict) else str(msg)
             elif data.get("text"):
                 content = data["text"]
@@ -271,7 +276,7 @@ def query_openrouter_with_backoff(model: str, messages: List[Dict[str, str]], ma
             if attempt == max_retries - 1:
                 raise RuntimeError(f"OpenRouter request failed after retries: {e}")
             time.sleep(backoff)
-            backoff *= 2
+            backoff = min(backoff * 2, 60.0)
 
     raise RuntimeError("Failed to get response from OpenRouter after retries")
 
@@ -281,7 +286,8 @@ _model_cycle = itertools.cycle([MODEL_MID, MODEL_CHEAP, MODEL_HIGH])
 def query_models_balanced(messages: List[Dict[str, str]]) -> str:
     """Rotate between models to balance load, retry on failure."""
     last_error = None
-    for _ in range(3):  # try up to 3 different models in rotation
+    # Try up to len(unique models) times
+    for _ in range(3):
         model = next(_model_cycle)
         try:
             return query_openrouter_with_backoff(model, messages)
@@ -292,32 +298,28 @@ def query_models_balanced(messages: List[Dict[str, str]]) -> str:
     raise RuntimeError(f"All models failed. Last error: {last_error}")
 
 # ----------------- Simple RAG answer -----------------
-import time
-
-def display_typing_animation(text: str, delay: float = 0.03):
+def display_typing_animation(text: str, delay: float = 0.0003):
     """Displays text with a typing effect inside Streamlit."""
     placeholder = st.empty()
     displayed = ""
-
     for char in text:
         displayed += char
         placeholder.markdown(displayed)
         time.sleep(delay)
-
-    # Once typing is done, lock the final text
     placeholder.markdown(displayed)
 
 def vanilla_rag_answer(context: str, question: str, lang: str = "English") -> str:
     try:
         prompt = [
             {"role": "system", "content": (
-                f"You are BitsBuddy, a BITSian. Answer in most analytical way covering all aspects and be helpful. "
+                f"You are BitsBuddy, a BITSian. Answer in the most analytical way covering all aspects and be helpful. "
                 f"Answer only when the question is about BITS; otherwise politely decline. Use relevant emojis. "
                 f"Answer in {lang}."
             )},
             {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}"}
         ]
-        return query_models_with_fallbacks([MODEL_MID] + MODEL_FALLBACKS, prompt)
+        # ✅ Use balanced rotation instead of single-model fallbacks
+        return query_models_balanced(prompt)
     except Exception as e:
         return f"Error in Vanilla RAG: {e}"
 
@@ -382,12 +384,7 @@ if user_query := st.chat_input("Ask me about BITS Pilani"):
             st.warning(f"Retriever failed: {e}")
 
         try:
-            # 🔹 Show animation while waiting
-            #typing_bubbles(duration=3)
-
             final_answer = vanilla_rag_answer(context, query, lang=language)
-
-            # 🔹 Store assistant response in history
             st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
 
             if "uid" in st.session_state:
@@ -400,11 +397,10 @@ if user_query := st.chat_input("Ask me about BITS Pilani"):
 for i, chat in enumerate(st.session_state.chat_history):
     with st.chat_message("user" if chat["role"] == "user" else "assistant"):
         if i == len(st.session_state.chat_history) - 1 and chat["role"] == "assistant":
-            # 🔹 Latest assistant message → typing effect
             display_typing_animation(chat["content"])
         else:
-            # 🔹 Older messages → show instantly
             st.markdown(chat["content"])
+
 # ----------------- Sidebar history preview -----------------
 with st.sidebar:
     st.subheader("📂 Chat History")
