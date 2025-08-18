@@ -1,11 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-BITS Buddy (Improved)
-- Safer FAISS loading, robust RAG scoring, and index manifest
-- Stronger rate limiting, retries, and caching
-- Cleaner architecture with docstrings, diagnostics, and UI controls
-"""
-
 import os
 import time
 import json
@@ -36,7 +28,7 @@ except Exception:
     credentials = auth = db = None
 
 # ========== VERSION ==========
-APP_VERSION = "2.2.0"
+APP_VERSION = "2.3.0"
 
 # ============================== Config ===============================
 @dataclass
@@ -192,6 +184,14 @@ class SQLiteCache:
             except Exception:
                 logger.exception("Failed to clear sqlite cache")
 
+    def count(self) -> int:
+        try:
+            with self.lock:
+                cur = self.conn.execute("SELECT COUNT(*) FROM cache")
+                return int(cur.fetchone()[0])
+        except Exception:
+            return 0
+
     def _prune(self):
         cur = self.conn.execute("SELECT COUNT(*) FROM cache")
         count = cur.fetchone()[0]
@@ -232,7 +232,6 @@ def mem_cache_set(key: str, value: str):
 def make_cache_key(model: str, messages: List[Dict[str, str]]):
     digest = hashlib.sha256()
     digest.update(model.encode("utf-8"))
-    # sort_keys ensures deterministic hash; message order is kept inside the list itself
     digest.update(json.dumps(messages, sort_keys=True, ensure_ascii=False).encode("utf-8"))
     return digest.hexdigest()
 
@@ -333,7 +332,9 @@ def build_or_load_vectordb(folder: str, index_dir: str, embed_model_name: str, a
         logger.exception("Failed to build FAISS vectorstore")
         return None
 
-vectordb = build_or_load_vectordb(CFG.pdf_docs_folder, CFG.faiss_index_dir, CFG.embed_model, CFG.faiss_allow_deserialization)
+vectordb = build_or_load_vectordb(
+    CFG.pdf_docs_folder, CFG.faiss_index_dir, CFG.embed_model, CFG.faiss_allow_deserialization
+)
 
 def rag_retrieve(query: str, k: int, threshold: float) -> List[Tuple[Document, float]]:
     """
@@ -346,17 +347,14 @@ def rag_retrieve(query: str, k: int, threshold: float) -> List[Tuple[Document, f
         # Preferred: normalized relevance in [0..1]
         if hasattr(vectordb, "similarity_search_with_relevance_scores"):
             pairs = vectordb.similarity_search_with_relevance_scores(query, k=k)
-            # Keep those above threshold
             filtered = [(doc, float(score)) for doc, score in pairs if score is not None and float(score) >= threshold]
             return filtered or [(doc, float(score or 0.0)) for doc, score in pairs]
         # Fallback: raw scores (often distances). Convert defensively.
         items = vectordb.similarity_search_with_score(query, k=k)
         scores = [s for _, s in items if s is not None]
-        # Heuristic: treat scores <= 1.0 as similarity (higher=better), else assume distance (lower=better)
         if scores and max(scores) <= 1.0:
             filtered = [(d, float(s)) for d, s in items if s is not None and float(s) >= threshold]
         else:
-            # Convert distance to relevance: rel = 1 / (1 + distance)
             filtered = []
             for d, s in items:
                 if s is None:
@@ -612,6 +610,110 @@ def friendly_error(e: Exception) -> str:
         return "⚠️ The request timed out. Please try again."
     return "⚠️ I'm having trouble connecting to the server. Please try again shortly."
 
+# ========================= Smart Control Planning =====================
+LANG_OPTIONS = ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"]
+
+def get_snapshot() -> Dict[str, Any]:
+    return {
+        "has_openrouter_key": bool(CFG.openrouter_api_key),
+        "faiss_loaded": bool(vectordb),
+        "firebase_enabled": FIREBASE_ENABLED,
+        "docs_folder": os.path.abspath(CFG.pdf_docs_folder),
+        "persistent_cache_default": CFG.enable_persistent_cache_default,
+        "sqlite_cache_entries": (sql_cache.count() if sql_cache else 0),
+        "app_version": APP_VERSION,
+    }
+
+def default_control_plan(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    # Conservative defaults if no model or parsing fails
+    return {
+        "show_language": True,
+        "show_cache_toggle": True if snapshot.get("has_openrouter_key") else False,
+        "show_rag_settings": bool(snapshot.get("faiss_loaded")),
+        "show_diagnostics": False,
+        "language_default": "English",
+        "enable_persistent_cache": snapshot.get("persistent_cache_default", True),
+        "suggested_k": CFG.k_val,
+        "score_threshold": CFG.score_threshold,
+        "allow_rebuild_index": True,
+        "allow_clear_cache": True,
+    }
+
+def parse_plan(text: str, snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        plan = json.loads(text.strip())
+        # Validate keys and clamp values
+        plan["show_language"] = bool(plan.get("show_language", True))
+        plan["show_cache_toggle"] = bool(plan.get("show_cache_toggle", False))
+        plan["show_rag_settings"] = bool(plan.get("show_rag_settings", bool(snapshot.get("faiss_loaded"))))
+        plan["show_diagnostics"] = bool(plan.get("show_diagnostics", False))
+        lang = plan.get("language_default") or "English"
+        plan["language_default"] = lang if lang in LANG_OPTIONS else "English"
+        plan["enable_persistent_cache"] = bool(plan.get("enable_persistent_cache", snapshot.get("persistent_cache_default", True)))
+        plan["suggested_k"] = int(max(1, min(12, int(plan.get("suggested_k", CFG.k_val)))))
+        th = float(plan.get("score_threshold", CFG.score_threshold))
+        plan["score_threshold"] = 0.0 if th < 0 else 1.0 if th > 1 else th
+        plan["allow_rebuild_index"] = bool(plan.get("allow_rebuild_index", True))
+        plan["allow_clear_cache"] = bool(plan.get("allow_clear_cache", True))
+        return plan
+    except Exception:
+        return default_control_plan(snapshot)
+
+def control_policy_messages(snapshot: Dict[str, Any]) -> List[Dict[str, str]]:
+    system = {
+        "role": "system",
+        "content": (
+            "You are a UI control planner for a Streamlit app. Your job is to decide which controls to render.\n"
+            "Output STRICT JSON ONLY (no code blocks, no commentary). Keys:\n"
+            "{\n"
+            '  "show_language": bool,\n'
+            '  "show_cache_toggle": bool,\n'
+            '  "show_rag_settings": bool,\n'
+            '  "show_diagnostics": bool,\n'
+            '  "language_default": "English|Hindi|Telugu|Tamil|Marathi|Bengali",\n'
+            '  "enable_persistent_cache": bool,\n'
+            '  "suggested_k": int (1..12),\n'
+            '  "score_threshold": float (0..1),\n'
+            '  "allow_rebuild_index": bool,\n'
+            '  "allow_clear_cache": bool\n'
+            "}\n"
+            "Be minimal for novices; only show advanced controls when useful. Consider whether FAISS is loaded, whether an API key exists, and cache state."
+        ),
+    }
+    user = {
+        "role": "user",
+        "content": json.dumps(snapshot),
+    }
+    return [system, user]
+
+def get_control_plan(force_refresh: bool = False, ttl_seconds: int = 600) -> Dict[str, Any]:
+    now = time.time()
+    snapshot = get_snapshot()
+    key = "control_plan"
+    key_ts = "control_plan_ts"
+    if not force_refresh and key in st.session_state and key_ts in st.session_state:
+        if now - st.session_state[key_ts] < ttl_seconds:
+            return st.session_state[key]
+
+    # If no OpenRouter key, fall back immediately
+    if not CFG.openrouter_api_key:
+        plan = default_control_plan(snapshot)
+        st.session_state[key] = plan
+        st.session_state[key_ts] = now
+        return plan
+
+    try:
+        msgs = control_policy_messages(snapshot)
+        # Use the cheaper model for control planning
+        text = router.call(CFG.model_cheap, msgs)
+        plan = parse_plan(text, snapshot)
+    except Exception:
+        plan = default_control_plan(snapshot)
+
+    st.session_state[key] = plan
+    st.session_state[key_ts] = now
+    return plan
+
 # ============================== UI ===================================
 # Header/logo
 col1, col2 = st.columns([1, 8])
@@ -623,43 +725,6 @@ with col1:
 with col2:
     st.markdown(f"<h1 style='margin-top: 0;'>{CFG.app_title} <small>v{APP_VERSION}</small></h1>", unsafe_allow_html=True)
 st.markdown("Ask me anything about BITS Pilani")
-
-# Sidebar Controls
-with st.sidebar:
-    st.header("⚙️ Controls")
-    if st.button("🔁 Start New Chat"):
-        uid = st.session_state.get("user_uid")
-        if uid:
-            delete_user_chat_history(uid)
-        st.session_state.chat_history = []
-        st.session_state.just_streamed = False
-        st.rerun()
-
-    language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"], index=0)
-
-    st.markdown("---")
-    st.checkbox("Use Persistent Cache (SQLite)", value=CFG.enable_persistent_cache_default, key="enable_sqlite")
-
-    # Advanced RAG controls
-    with st.expander("🔍 RAG Settings"):
-        st.session_state.k_val = st.slider("Top-K Chunks", min_value=1, max_value=12, value=CFG.k_val, step=1)
-        st.session_state.score_threshold = st.slider("Relevance Threshold (0-1)", min_value=0.0, max_value=1.0, value=CFG.score_threshold, step=0.05)
-        if st.button("Rebuild Index"):
-            # Clear cached resource and rebuild
-            build_or_load_vectordb.clear()
-            st.cache_resource.clear()
-            st.success("Index rebuild requested. It will rebuild on next query.")
-        if st.button("Clear Persistent Cache"):
-            if sql_cache:
-                sql_cache.clear()
-                st.success("Persistent cache cleared.")
-
-    st.markdown("---")
-    st.subheader("🩺 Diagnostics")
-    st.write(f"OpenRouter API Key: {'✅ set' if bool(CFG.openrouter_api_key) else '❌ missing'}")
-    st.write(f"FAISS Index: {'✅ loaded' if vectordb else 'ℹ️ none'}")
-    st.write(f"Firebase: {'✅ enabled' if FIREBASE_ENABLED else 'ℹ️ disabled'}")
-    st.write(f"PDF Folder: {os.path.abspath(CFG.pdf_docs_folder)}")
 
 # Authentication (optional)
 def login_screen():
@@ -710,7 +775,98 @@ if "chat_history" not in st.session_state:
 if "just_streamed" not in st.session_state:
     st.session_state.just_streamed = False
 
-st.title(f"Welcome {st.session_state.get('user_name', 'BITSian')} 👋")
+# ======================= Sidebar (Smart Minimal) ======================
+with st.sidebar:
+    st.header("⚙️ Chat")
+    if st.button("🔁 Start New Chat"):
+        uid = st.session_state.get("user_uid")
+        if uid:
+            delete_user_chat_history(uid)
+        st.session_state.chat_history = []
+        st.session_state.just_streamed = False
+        st.rerun()
+
+    st.markdown("---")
+    st.subheader("📂 Chat History")
+    preview_items = list(reversed(st.session_state.get("chat_history", [])))[:50]
+    for idx, item in enumerate(preview_items):
+        role = item.get("role", "user")
+        content = item.get("content", "").replace("\n", " ")
+        preview = content[:150] + ("..." if len(content) > 150 else "")
+        st.markdown(f"**{'Q' if role=='user' else 'A'}{idx+1}:** {preview}")
+        st.markdown("---")
+
+# ===================== Assistant-Chosen Controls (Main) ===============
+st.markdown("### 🔧 Assistant-chosen Controls")
+plan_col1, plan_col2 = st.columns([4, 1])
+with plan_col1:
+    st.caption("The assistant decides what to show here based on app state and your needs.")
+with plan_col2:
+    if st.button("♻️ Recompute Controls"):
+        plan = get_control_plan(force_refresh=True)
+        st.toast("Controls updated by assistant.")
+    else:
+        plan = get_control_plan(force_refresh=False)
+
+# Apply plan defaults to session state
+# Persistent cache toggle
+if "enable_sqlite" not in st.session_state:
+    st.session_state.enable_sqlite = plan.get("enable_persistent_cache", CFG.enable_persistent_cache_default)
+
+control_container = st.container()
+with control_container:
+    ui_cols = st.columns(3)
+
+    # Language (if chosen)
+    if plan.get("show_language", True):
+        default_idx = LANG_OPTIONS.index(plan.get("language_default", "English"))
+        language = ui_cols[0].selectbox("🌐 Response Language", LANG_OPTIONS, index=default_idx, key="language_select")
+    else:
+        # hidden but used default
+        language = plan.get("language_default", "English")
+        st.session_state["language_select"] = language
+
+    # Persistent cache toggle (if chosen)
+    if plan.get("show_cache_toggle", False):
+        ui_cols[1].checkbox("💾 Use Persistent Cache (SQLite)", value=st.session_state.enable_sqlite, key="enable_sqlite")
+
+    # RAG advanced settings (if chosen)
+    if plan.get("show_rag_settings", bool(vectordb)):
+        with st.expander("🔍 Advanced RAG Settings"):
+            st.session_state.k_val = st.slider("Top-K Chunks", min_value=1, max_value=12, value=int(plan.get("suggested_k", CFG.k_val)), step=1)
+            st.session_state.score_threshold = st.slider("Relevance Threshold (0-1)", min_value=0.0, max_value=1.0, value=float(plan.get("score_threshold", CFG.score_threshold)), step=0.05)
+
+            cols = st.columns(2)
+            if plan.get("allow_rebuild_index", True):
+                if cols[0].button("Rebuild Index"):
+                    try:
+                        build_or_load_vectordb.clear()
+                        global vectordb
+                        vectordb = build_or_load_vectordb(CFG.pdf_docs_folder, CFG.faiss_index_dir, CFG.embed_model, CFG.faiss_allow_deserialization)
+                        st.success("Index rebuild requested. It will be used on next query.")
+                    except Exception:
+                        logger.exception("Failed to rebuild index")
+                        st.error("Unable to rebuild the index. Check logs.")
+            if plan.get("allow_clear_cache", True):
+                if cols[1].button("Clear Persistent Cache"):
+                    if sql_cache:
+                        sql_cache.clear()
+                        st.success("Persistent cache cleared.")
+
+    # Diagnostics (if chosen)
+    if plan.get("show_diagnostics", False):
+        st.markdown("---")
+        st.subheader("🩺 Diagnostics")
+        st.write(f"OpenRouter API Key: {'✅ set' if bool(CFG.openrouter_api_key) else '❌ missing'}")
+        st.write(f"FAISS Index: {'✅ loaded' if vectordb else 'ℹ️ none'}")
+        st.write(f"Firebase: {'✅ enabled' if FIREBASE_ENABLED else 'ℹ️ disabled'}")
+        st.write(f"PDF Folder: {os.path.abspath(CFG.pdf_docs_folder)}")
+        if sql_cache:
+            st.write(f"SQLite Cache Entries: {sql_cache.count()}")
+
+# Guard: OpenRouter key
+if not CFG.openrouter_api_key:
+    st.warning("OpenRouter API key is not set. Set OPENROUTER_API_KEY in your environment.")
 
 # ============================ Main Chat ==============================
 def display_typing_animation(text: str, placeholder, chunk_size: int = 60, delay: float = 0.02):
@@ -722,10 +878,16 @@ def display_typing_animation(text: str, placeholder, chunk_size: int = 60, delay
     except Exception:
         placeholder.markdown(text)
 
-# Guard: OpenRouter key
-if not CFG.openrouter_api_key:
-    st.warning("OpenRouter API key is not set. Set OPENROUTER_API_KEY in your environment.")
-    
+st.title(f"Welcome {st.session_state.get('user_name', 'BITSian')} 👋")
+
+# Defaults for RAG and language if UI disabled
+if "k_val" not in st.session_state:
+    st.session_state.k_val = int(plan.get("suggested_k", CFG.k_val))
+if "score_threshold" not in st.session_state:
+    st.session_state.score_threshold = float(plan.get("score_threshold", CFG.score_threshold))
+if "language_select" not in st.session_state:
+    st.session_state.language_select = plan.get("language_default", "English")
+
 if user_query := st.chat_input("Ask me about BITS Pilani"):
     query = user_query.strip()
     if not query:
@@ -747,6 +909,7 @@ if user_query := st.chat_input("Ask me about BITS Pilani"):
                 context, sources = join_context(results, max_chars=CFG.max_context_chars)
 
                 # Build messages with trimmed memory
+                language = st.session_state.get("language_select", plan.get("language_default", "English"))
                 messages = build_prompt(context, query, language, st.session_state.chat_history)
 
                 # Get LLM answer
@@ -778,17 +941,6 @@ for i, chat in enumerate(st.session_state.chat_history):
             st.session_state.just_streamed = True
         else:
             st.markdown(chat["content"])
-
-# Sidebar history preview
-with st.sidebar:
-    st.subheader("📂 Chat History")
-    preview_items = list(reversed(st.session_state.get("chat_history", [])))[:50]
-    for idx, item in enumerate(preview_items):
-        role = item.get("role", "user")
-        content = item.get("content", "").replace("\n", " ")
-        preview = content[:150] + ("..." if len(content) > 150 else "")
-        st.markdown(f"**{'Q' if role=='user' else 'A'}{idx+1}:** {preview}")
-        st.markdown("---")
 
 # Footer
 st.markdown(
