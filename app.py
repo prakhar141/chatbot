@@ -256,6 +256,21 @@ def query_models_with_fallbacks(models: List[str], messages: List[Dict[str, str]
     raise RuntimeError(f"All models failed. Last error: {last_error}")
 
 # ----------------- Simple RAG answer -----------------
+import time
+
+def display_typing_animation(text: str, delay: float = 0.03):
+    """Displays text with a typing effect inside Streamlit."""
+    placeholder = st.empty()
+    displayed = ""
+
+    for char in text:
+        displayed += char
+        placeholder.markdown(displayed)
+        time.sleep(delay)
+
+    # Once typing is done, lock the final text
+    placeholder.markdown(displayed)
+
 def vanilla_rag_answer(context: str, question: str, lang: str = "English") -> str:
     try:
         prompt = [
@@ -332,8 +347,11 @@ if user_query := st.chat_input("Ask me about BITS Pilani"):
             st.warning(f"Retriever failed: {e}")
 
         try:
-            final_answer = vanilla_rag_answer(context, query, lang=language)
+            with st.spinner("🤔 Thinking..."):
+                final_answer = vanilla_rag_answer(context, query, lang=language)
             st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
+            with st.chat_message("assistant"):
+                display_typing_animation(final_answer)
 
             if "uid" in st.session_state:
                 save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
