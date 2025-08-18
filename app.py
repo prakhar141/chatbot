@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+BITS Buddy (Smart Sidebar Edition)
+- Sidebar trimmed to only "Start New Chat" and "Chat History"
+- All other UI controls are chosen dynamically by the model
+- Keeps safer FAISS loading, robust RAG scoring, caching, and clean architecture
+"""
+
 import os
 import time
 import json
@@ -853,17 +861,7 @@ with control_container:
                         sql_cache.clear()
                         st.success("Persistent cache cleared.")
 
-    # Diagnostics (if chosen)
-    if plan.get("show_diagnostics", False):
-        st.markdown("---")
-        st.subheader("🩺 Diagnostics")
-        st.write(f"OpenRouter API Key: {'✅ set' if bool(CFG.openrouter_api_key) else '❌ missing'}")
-        st.write(f"FAISS Index: {'✅ loaded' if vectordb else 'ℹ️ none'}")
-        st.write(f"Firebase: {'✅ enabled' if FIREBASE_ENABLED else 'ℹ️ disabled'}")
-        st.write(f"PDF Folder: {os.path.abspath(CFG.pdf_docs_folder)}")
-        if sql_cache:
-            st.write(f"SQLite Cache Entries: {sql_cache.count()}")
-
+    
 # Guard: OpenRouter key
 if not CFG.openrouter_api_key:
     st.warning("OpenRouter API key is not set. Set OPENROUTER_API_KEY in your environment.")
