@@ -359,9 +359,10 @@ if user_query := st.chat_input("Ask me about BITS Pilani"):
             st.session_state.chat_history.append({"role": "assistant", "content": f"Error: {e}"})
 
 # ----------------- Display chat history -----------------
-for chat in st.session_state.chat_history:
-    with st.chat_message("user" if chat["role"] == "user" else "assistant"):
-        st.markdown(chat["content"])
+for i, chat in enumerate(st.session_state.chat_history):
+    if chat["role"] == "user" or i < len(st.session_state.chat_history) - 1:
+        with st.chat_message("user" if chat["role"] == "user" else "assistant"):
+            st.markdown(chat["content"])
 
 # ----------------- Sidebar history preview -----------------
 with st.sidebar:
