@@ -1,4 +1,4 @@
-# cleaned_buddy.py
+# cleaned_buddy_simple.py
 import os
 import time
 import hashlib
@@ -19,7 +19,7 @@ from langchain.docstore.document import Document
 import firebase_admin
 from firebase_admin import credentials, auth, db
 
-# ========== CONFIG (tweak these models per your OpenRouter access) ==========
+# ========== CONFIG ==========
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
 MODEL_CHEAP = os.getenv("MODEL_CHEAP") or "deepseek/deepseek-r1:free"
 MODEL_MID = os.getenv("MODEL_MID") or "openai/gpt-oss-20b:free"
@@ -32,7 +32,7 @@ K_VAL = int(os.getenv("K_VAL") or 4)
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
 ENABLE_PERSISTENT_CACHE = True
 
-# ----------------- utilities for firebase chat history -----------------
+# ----------------- Firebase chat history -----------------
 def load_user_chat_history(uid: str) -> List[Dict[str, Any]]:
     try:
         ref = db.reference(f"user_chats/{uid}")
@@ -47,7 +47,6 @@ def load_user_chat_history(uid: str) -> List[Dict[str, Any]]:
     except Exception as e:
         st.error(f"Failed to load chat history for UID {uid}: {e}")
         return []
-
 
 def save_user_chat_history(uid: str, chat: List[Dict[str, Any]]) -> bool:
     try:
@@ -76,7 +75,7 @@ realtime_db = db.reference('/')
 
 # ----------------- Streamlit page & sidebar -----------------
 st.set_page_config(page_title="BITS Buddy", layout="wide")
-col1, col2 = st.columns([1, 8])  # Adjust ratio as needed
+col1, col2 = st.columns([1, 8])
 
 with col1:
     st.image("bits_logo.jpg", width=50)
@@ -101,7 +100,6 @@ with st.sidebar:
         st.rerun()
 
     language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
-    use_advanced_rag = st.checkbox("Reasoning(response takes 3 min)", value=False, key="use_advanced_rag")
     st.markdown("---")
     st.checkbox("For Faster Loading", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
 
@@ -192,8 +190,7 @@ def load_vector_db(folder="."):
 
 retriever = load_vector_db()
 
-
-# ----------------- OpenRouter helpers (unchanged) -----------------
+# ----------------- OpenRouter helpers -----------------
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 HEADERS_BASE = {"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"}
 
@@ -253,88 +250,19 @@ def query_models_with_fallbacks(models: List[str], messages: List[Dict[str, str]
     for m in models:
         try:
             return query_openrouter_with_backoff(m, messages)
-        except requests.HTTPError as e:
-            last_error = e
-            continue
         except Exception as e:
             last_error = e
             continue
     raise RuntimeError(f"All models failed. Last error: {last_error}")
 
-# ----------------- Prompts and RAG pipeline (unchanged structure) -----------------
-def scratchpad_reasoning(context: str, question: str) -> str:
-    return (
-        f"Let's think step-by-step.\n\nContext (shortened):\n"
-        f"{(context[:2000] + '...') if len(context) > 2000 else context}\n\nQuestion:\n{question}"
-    )
-
-def build_thinking_prompt(question: str, context: str) -> List[Dict[str, str]]:
-    return [
-        {"role": "system", "content": ("You are an assistant that narrates a concise, casual internal monologue "
-                                      "before answering. Keep it 2-4 short sentences, conversational, use 'Hmm...', "
-                                      "'Oh I see...', 'Wait...' and DO NOT give the final answer — only describe what "
-                                      "you are thinking and what you plan to do next.")},
-        {"role": "user", "content": (f"Question: {question}\n\nRelevant context:\n"
-                                     f"{(context[:1500] + '...') if len(context) > 1500 else context}")}
-    ]
-
-def build_primary_prompt(context: str, question: str, lang: str) -> List[Dict[str, str]]:
-    return [
-        {"role": "system", "content": (
-            f"You are BitsBuddy, a BITSian  helping .Be Concise and Helpful.Answer only when the question is about BITS only,otherwise do not answer and politely tell about ur capabilities.use relevant emojis.  "
-            f"Answer in {lang}. 🎓 "
-            
-        )},
-        {"role": "user", "content": scratchpad_reasoning(context, question)}
-    ]
-
-def build_critic_prompt(context: str, question: str, answer: str) -> List[Dict[str, str]]:
-    return [
-        {"role": "system", "content": (
-            "You are an honest critic. Check if the assistant’s answer is realted to bits pilani"
-            "."
-        )},
-        {"role": "user", "content": (
-            f"Context:\n{(context[:1500] + '...') if len(context) > 1500 else context}\n\n"
-            f"Question:\n{question}\n\nAnswer:\n{answer}\n\nCritique and list corrections:"
-        )}
-    ]
-
-def build_final_prompt(context: str, question: str, answer: str, critique: str, lang: str) -> List[Dict[str, str]]:
-    return [
-        {"role": "system", "content": (f"You are BitsBuddy with self-evaluation enabled. Based on critique, "
-                                       f"revise your original answer. Be clear and concise in {lang}.") },
-        {"role": "user", "content": (f"Original Answer:\n{answer}\n\nCritique:\n{critique}\n\nNow improve the answer accordingly.use relevant emojis")}
-    ]
-
-def modular_rag_smart_answer(context: str, question: str, lang: str = "English") -> Dict[str, Any]:
-    result = {}
-    try:
-        thinking_msgs = build_thinking_prompt(question, context)
-        thinking = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_msgs)
-        result["thinking"] = thinking
-
-        primary_msgs = build_primary_prompt(context, question, lang)
-        primary = query_models_with_fallbacks([MODEL_MID] + MODEL_FALLBACKS, primary_msgs)
-        result["primary"] = primary
-
-        critique_msgs = build_critic_prompt(context, question, primary)
-        critique = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, critique_msgs)
-        result["critique"] = critique
-
-        final_msgs = build_final_prompt(context, question, primary, critique, lang)
-        final = query_models_with_fallbacks([MODEL_HIGH] + MODEL_FALLBACKS, final_msgs)
-        result["final"] = final
-
-        return result
-    except Exception as e:
-        return {"error": str(e)}
+# ----------------- Simple RAG answer -----------------
 def vanilla_rag_answer(context: str, question: str, lang: str = "English") -> str:
     try:
         prompt = [
             {"role": "system", "content": (
-                f"You are BitsBuddy, a BITSian . Answer in most analytical way covering all aspects and Helpful.Answer only when the question is about BITS only .otherwise do not answer.and politely tell about ur capabilities. use relevant emojis"
-                
+                f"You are BitsBuddy, a BITSian. Answer in most analytical way covering all aspects and be helpful. "
+                f"Answer only when the question is about BITS; otherwise politely decline. Use relevant emojis. "
+                f"Answer in {lang}."
             )},
             {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}"}
         ]
@@ -350,7 +278,6 @@ if "authenticated" in st.session_state and st.session_state["authenticated"]:
     if "just_streamed" not in st.session_state:
         st.session_state.just_streamed = False
 else:
-    # show login screen if not authenticated (define login_screen elsewhere or reuse your function)
     def login_screen():
         st.title("🔐 BITS Buddy Login")
         st.markdown("Please log in to continue")
@@ -384,28 +311,17 @@ else:
     login_screen()
     st.stop()
 
-# ----------------- Main chat handler (single unified flow) -----------------
-
-# Initialize chat history once
+# ----------------- Main chat handler -----------------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
-# Initialize chat history once
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
-# ----------------- Chat input -----------------
-if user_query := st.chat_input("Ask me about BITS Pilani anything"):
+if user_query := st.chat_input("Ask me about BITS Pilani"):
     query = user_query.strip()
-    if not query:
-        st.warning("Please type a question.")
-    else:
-        # Store user query
+    if query:
         st.session_state.chat_history.append({"role": "user", "content": query})
 
-        # Try to fetch context
         try:
             docs = retriever.get_relevant_documents(query)
             context = "\n".join([doc.page_content for doc in docs]) if docs else (
@@ -415,25 +331,12 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
             context = st.session_state.get("uploaded_content", "") or ""
             st.warning(f"Retriever failed: {e}")
 
-        # ----------------- Assistant response -----------------
         try:
-            if st.session_state.get("use_advanced_rag", True):
-                thinking_prompt = build_thinking_prompt(query, context)
-                thinking_text = query_models_with_fallbacks(
-                    [MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt
-                )
-                rag_result = modular_rag_smart_answer(context, query, lang=language)
-                final_answer = rag_result.get("final", rag_result.get("error", "Sorry — something went wrong."))
-            else:
-                final_answer = vanilla_rag_answer(context, query, lang=language)
-
-            # ✅ Just append (don’t display here)
+            final_answer = vanilla_rag_answer(context, query, lang=language)
             st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
 
-            # Save to Firebase if logged in
             if "uid" in st.session_state:
                 save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
-
         except Exception as e:
             st.session_state.chat_history.append({"role": "assistant", "content": f"Error: {e}"})
 
@@ -441,28 +344,21 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
 for chat in st.session_state.chat_history:
     with st.chat_message("user" if chat["role"] == "user" else "assistant"):
         st.markdown(chat["content"])
-# ----------------- Sidebar history preview -----------------
 
+# ----------------- Sidebar history preview -----------------
 with st.sidebar:
     st.subheader("📂 Chat History")
-    
-     #Reverse chat history to show latest on top
     for i, chat in enumerate(reversed(st.session_state.get("chat_history", []))):
         role = chat.get("role", "user")
         content = chat.get("content", "")
-        
-        # Truncate content to 150 chars for display
-        preview = content.replace("\n", " ")  # remove line breaks
+        preview = content.replace("\n", " ")
         if len(preview) > 150:
             preview = preview[:150] + "..."
-        
-         #Display question/answer labels based on role
         if role == "user":
             st.markdown(f"**Q{i+1}:** {preview}")
         else:
             st.markdown(f"**A{i+1}:** {preview}")
         st.markdown("---")
-
 
 # ----------------- Footer -----------------
 st.markdown("""
