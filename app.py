@@ -846,15 +846,21 @@ with control_container:
 
             cols = st.columns(2)
             if plan.get("allow_rebuild_index", True):
-                if cols[0].button("Rebuild Index"):
-                    try:
-                        build_or_load_vectordb.clear()
-                        global vectordb
-                        vectordb = build_or_load_vectordb(CFG.pdf_docs_folder, CFG.faiss_index_dir, CFG.embed_model, CFG.faiss_allow_deserialization)
-                        st.success("Index rebuild requested. It will be used on next query.")
-                    except Exception:
-                        logger.exception("Failed to rebuild index")
-                        st.error("Unable to rebuild the index. Check logs.")
+    if cols[0].button("Rebuild Index"):
+        try:
+            global vectordb   # declare first!
+            build_or_load_vectordb.clear()
+            vectordb = build_or_load_vectordb(
+                CFG.pdf_docs_folder,
+                CFG.faiss_index_dir,
+                CFG.embed_model,
+                CFG.faiss_allow_deserialization,
+            )
+            st.success("Index rebuild requested. It will be used on next query.")
+        except Exception:
+            logger.exception("Failed to rebuild index")
+            st.error("Unable to rebuild the index. Check logs.")
+
             if plan.get("allow_clear_cache", True):
                 if cols[1].button("Clear Persistent Cache"):
                     if sql_cache:
