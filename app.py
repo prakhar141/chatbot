@@ -280,7 +280,7 @@ def build_thinking_prompt(question: str, context: str) -> List[Dict[str, str]]:
 def build_primary_prompt(context: str, question: str, lang: str) -> List[Dict[str, str]]:
     return [
         {"role": "system", "content": (f"You are BitsBuddy, a BITSian senior. Answer in {lang}. "
-                                       "Use emojis, be concise and helpful. Provide actionable steps if relevant.")},
+                                       "Use emojis, be concise and helpful. Provide actionable steps if relevant.Answer questions which are relevanto bits only.otherwise politely tell ur capabilities")},
         {"role": "user", "content": scratchpad_reasoning(context, question)}
     ]
 
