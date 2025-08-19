@@ -393,7 +393,9 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
         # Build context from retriever and uploaded content (always do this before calling the RAG pipeline)
         try:
             docs = retriever.get_relevant_documents(query)
-            context = "\n".join([doc.page_content for doc in docs]) if docs else (st.session_state.get("uploaded_content", "") or "")
+            context = "\n".join([doc.page_content for doc in docs]) if docs else (
+                st.session_state.get("uploaded_content", "") or ""
+            )
         except Exception as e:
             context = st.session_state.get("uploaded_content", "") or ""
             st.warning(f"Retriever failed: {e}")
@@ -405,6 +407,7 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                 # thinking monologue (cheap)
                 thinking_prompt = build_thinking_prompt(query, context)
                 thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
+
                 animated = ""
                 for ch in thinking_text:
                     animated += ch
@@ -415,17 +418,20 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                 time.sleep(0.25)
                 thinking_placeholder.markdown("🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
 
-                if st.session_state.use_smart_llm:
-                     rag_result = modular_rag_smart_answer(context, query, lang=language)
-                     final_answer = rag_result.get("final", rag_result.get("error", "❌ Something went wrong."))
-
-                 # Use full 4-LLM smart pipeline
+                # ✅ Fixed indentation + key access
+                if st.session_state["use_smart_llm"]:
+                    # Use full 4-LLM smart pipeline
+                    rag_result = modular_rag_smart_answer(context, query, lang=language)
+                    final_answer = rag_result.get("final", rag_result.get("error", "❌ Something went wrong."))
                 else:
                     # Use vanilla RAG
                     final_answer = vanilla_rag_answer(context, query, lang=language)
-                    rag_result = {"thinking": "", "primary": final_answer, "critique": "", "final": final_answer}
-
-    
+                    rag_result = {
+                        "thinking": "",
+                        "primary": final_answer,
+                        "critique": "",
+                        "final": final_answer,
+                    }
 
                 chat_record = {
                     "question": query,
@@ -433,7 +439,7 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                     "primary": rag_result.get("primary", ""),
                     "critique": rag_result.get("critique", ""),
                     "final": rag_result.get("final", rag_result.get("error", "Sorry — something went wrong.")),
-                    "language": language
+                    "language": language,
                 }
 
                 if "error" in rag_result:
@@ -461,7 +467,6 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                     "content": f"Error: {e}"
                 })
                 st.session_state.just_streamed = True
-
 # ----------------- Display chat history (non-streamed older messages) -----------------
 if st.session_state.just_streamed and len(st.session_state.chat_history) > 0:
     history_to_show = st.session_state.chat_history[:-1]
