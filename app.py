@@ -101,7 +101,7 @@ with st.sidebar:
         st.rerun()
 
     language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
-    st.checkbox("⚡Deep Think", value=False, key="use_smart_llm") 
+    st.checkbox("🧠Deep Think", value=False, key="use_smart_llm") 
     st.markdown("---")
     st.checkbox("For fast loading", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
 
@@ -404,27 +404,31 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
         with st.chat_message("assistant"):
             thinking_placeholder = st.empty()
             try:
-                # thinking monologue (cheap)
-                thinking_prompt = build_thinking_prompt(query, context)
-                thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
+                use_smart = bool(st.session_state.get("use_smart_llm", False))
+                mode_badge = "🧠Deep Thinking" if use_smart else "⚡Quick Answer"
+                thinking_placeholder.markdown(f"{mode_badge} — preparing response...")
 
-                animated = ""
-                for ch in thinking_text:
-                    animated += ch
-                    thinking_placeholder.markdown(f"**Thinking:** {animated}|")
-                    time.sleep(0.01)
-                thinking_placeholder.markdown(f"**Thinking:** {animated}")
+                if use_smart:
+                    # ========== SMART PIPELINE ==========
+                    # Show a short "thinking" monologue (cheap)
+                    thinking_prompt = build_thinking_prompt(query, context)
+                    thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
 
-                time.sleep(0.25)
-                thinking_placeholder.markdown("🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
+                    animated = ""
+                    for ch in thinking_text:
+                        animated += ch
+                        thinking_placeholder.markdown(f"{mode_badge}\n\n**Thinking:** {animated}|")
+                        time.sleep(0.01)
+                    thinking_placeholder.markdown(f"{mode_badge}\n\n**Thinking:** {animated}")
 
-                # ✅ Fixed indentation + key access
-                if st.session_state["use_smart_llm"]:
-                    # Use full 4-LLM smart pipeline
+                    time.sleep(0.25)
+                    thinking_placeholder.markdown(f"{mode_badge}\n\n🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
+
                     rag_result = modular_rag_smart_answer(context, query, lang=language)
                     final_answer = rag_result.get("final", rag_result.get("error", "❌ Something went wrong."))
                 else:
-                    # Use vanilla RAG
+                    # ========== VANILLA PIPELINE ==========
+                    # No "thinking monologue" in vanilla mode
                     final_answer = vanilla_rag_answer(context, query, lang=language)
                     rag_result = {
                         "thinking": "",
@@ -439,19 +443,19 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                     "primary": rag_result.get("primary", ""),
                     "critique": rag_result.get("critique", ""),
                     "final": rag_result.get("final", rag_result.get("error", "Sorry — something went wrong.")),
-                    "language": language,
+                    "language": language
                 }
 
                 if "error" in rag_result:
-                    thinking_placeholder.markdown(f"❌ Error while generating answer: {rag_result['error']}")
+                    thinking_placeholder.markdown(f"{mode_badge}\n\n❌ Error while generating answer: {rag_result['error']}")
                 else:
                     final_answer = chat_record["final"]
                     animated = ""
                     for c in final_answer:
                         animated += c
-                        thinking_placeholder.markdown(animated + "|")
+                        thinking_placeholder.markdown(f"{mode_badge}\n\n" + animated + "|")
                         time.sleep(0.004)
-                    thinking_placeholder.markdown(animated)
+                    thinking_placeholder.markdown(f"{mode_badge}\n\n" + animated)
 
                 st.session_state.chat_history.append({"role": "assistant", "content": chat_record["final"]})
                 st.session_state.just_streamed = True
@@ -467,6 +471,7 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                     "content": f"Error: {e}"
                 })
                 st.session_state.just_streamed = True
+
 # ----------------- Display chat history (non-streamed older messages) -----------------
 if st.session_state.just_streamed and len(st.session_state.chat_history) > 0:
     history_to_show = st.session_state.chat_history[:-1]
