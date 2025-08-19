@@ -295,7 +295,7 @@ def build_critic_prompt(context: str, question: str, answer: str) -> List[Dict[s
 
 def build_final_prompt(context: str, question: str, answer: str, critique: str, lang: str) -> List[Dict[str, str]]:
     return [
-        {"role": "system", "content": (f"You are BitsBuddy+ with self-evaluation enabled. Based on critique, "
+        {"role": "system", "content": (f"You are BitsBuddy with self-evaluation enabled.Use Relevant Emojis.Based on critique, "
                                        f"revise your original answer. Be clear and concise in {lang}.") },
         {"role": "user", "content": (f"Original Answer:\n{answer}\n\nCritique:\n{critique}\n\nNow improve the answer accordingly.")}
     ]
