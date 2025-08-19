@@ -101,7 +101,7 @@ with st.sidebar:
         st.rerun()
 
     language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
-    st.checkbox("⚡Deep Think", value=True, key="use_smart_llm") 
+    st.checkbox("⚡Deep Think", value=False, key="use_smart_llm") 
     st.markdown("---")
     st.checkbox("For fast loading", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
 
@@ -325,7 +325,7 @@ def modular_rag_smart_answer(context: str, question: str, lang: str = "English")
 def vanilla_rag_answer(context: str, question: str, lang: str = "English") -> str:
     """Simple retriever + one model answer, no self-critique or multi-step LLM calls."""
     prompt = [
-        {"role": "system", "content": f"You are BitsBuddy, a helpful BITS senior. Answer clearly in {lang}."},
+        {"role": "system", "content": f"You are BitsBuddy, a helpful BITS assistant.Answer questions related to Bits only otherwise tell ur capabilities politely. Answer clearly in {lang}."},
         {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}"}
     ]
     try:
