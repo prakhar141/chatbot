@@ -101,6 +101,7 @@ with st.sidebar:
         st.rerun()
 
     language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
+    st.checkbox("⚡Deep Think", value=True, key="use_smart_llm") 
     st.markdown("---")
     st.checkbox("For fast loading", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
 
@@ -321,6 +322,16 @@ def modular_rag_smart_answer(context: str, question: str, lang: str = "English")
         return result
     except Exception as e:
         return {"error": str(e)}
+def vanilla_rag_answer(context: str, question: str, lang: str = "English") -> str:
+    """Simple retriever + one model answer, no self-critique or multi-step LLM calls."""
+    prompt = [
+        {"role": "system", "content": f"You are BitsBuddy, a helpful BITS senior. Answer clearly in {lang}."},
+        {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}"}
+    ]
+    try:
+        return query_models_with_fallbacks([MODEL_MID] + MODEL_FALLBACKS, prompt)
+    except Exception as e:
+        return f"⚠️ Error generating answer: {e}"
 
 # ----------------- Session init -----------------
 if "authenticated" in st.session_state and st.session_state["authenticated"]:
@@ -404,7 +415,17 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                 time.sleep(0.25)
                 thinking_placeholder.markdown("🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
 
-                rag_result = modular_rag_smart_answer(context, query, lang=language)
+                if st.session_state.use_smart_llm:
+                     rag_result = modular_rag_smart_answer(context, query, lang=language)
+                     final_answer = rag_result.get("final", rag_result.get("error", "❌ Something went wrong."))
+
+                 # Use full 4-LLM smart pipeline
+                else:
+                    # Use vanilla RAG
+                    final_answer = vanilla_rag_answer(context, query, lang=language)
+                    rag_result = {"thinking": "", "primary": final_answer, "critique": "", "final": final_answer}
+
+    
 
                 chat_record = {
                     "question": query,
