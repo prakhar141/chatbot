@@ -429,7 +429,7 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
 
         # Auto-pipeline selection
         use_smart = should_use_deepthink(query)
-        mode_badge = "🧠Deep Thinking (Auto)" if use_smart else "⚡Quick Answer (Auto)"
+        mode_badge = "🧠Deep Thinking" if use_smart else "⚡Quick Answer"
 
         with st.chat_message("assistant"):
             thinking_placeholder = st.empty()
