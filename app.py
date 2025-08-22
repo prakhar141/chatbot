@@ -101,7 +101,7 @@ with st.sidebar:
         st.rerun()
 
     language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
-    st.checkbox("🧠Deep Think", value=False, key="use_smart_llm") 
+    #st.checkbox("🧠Deep Think", value=False, key="use_smart_llm") 
     st.markdown("---")
     st.checkbox("For fast loading", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
 
