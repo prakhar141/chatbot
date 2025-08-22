@@ -375,49 +375,171 @@ else:
     login_screen()
     st.stop()
 # ----------------- Main chat handler (auto pipeline selection) -----------------
+import time
+import streamlit as st
+import spacy
+from nltk.corpus import stopwords
+from sentence_transformers import SentenceTransformer, util
+
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
+# ----------------------
+# 1️⃣ Load NLP & embedding models
+# ----------------------
+nlp = spacy.load("en_core_web_sm")
+stop_words = set(stopwords.words("english"))
+embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+# Reference queries that always need deep reasoning
+deep_reasoning_refs = [
+    "Explain how something works",
+    "Compare advantages and disadvantages",
+    "Predict the outcome based on data",
+    "Evaluate the process step by step",
+    "Explain the impact or effect of X",
+    "Provide a detailed reasoning or analysis"
+]
+deep_ref_embeddings = embed_model.encode(deep_reasoning_refs, convert_to_tensor=True)
+
+
+# ----------------------
+# 2️⃣ DeepThink heuristic with NLP + embeddings
+# ----------------------
 def should_use_deepthink(query: str) -> bool:
     """
-    Stronger heuristic: decide if query needs deep reasoning vs quick factual answer.
+    Determines if a query needs deep reasoning.
+    Uses: keywords, syntactic complexity, content density, and semantic similarity.
     """
     q = query.strip().lower()
-    words = q.split()
-    
-    # (1) Very short queries → Quick answer
-    if len(words) <= 5:
-        return False
-    
-    # (2) Very long / multi-clause queries → Deep reasoning
-    if len(words) > 20 or "?" in q and ("and" in q or "or" in q or "," in q):
-        return True
-    
-    # (3) Explanatory/comparative cues (but weighted, not raw keyword match)
-    explanation_cues = ["why", "how", "explain", "difference", "compare", "advantages", "disadvantages", "steps", "process"]
-    reasoning_score = sum(1 for cue in explanation_cues if cue in q)
-    if reasoning_score >= 1:
-        return True
-    
-    # (4) Default: if it looks like a definition/factoid (e.g., "what is", "who is") → Quick
-    factoid_cues = ["what is", "who is", "when is", "define", "location", "fee", "contact", "hostel", "mess", "address"]
-    if any(cue in q for cue in factoid_cues):
-        return False
-    
-    # (5) Fallback: moderately sized question → use vanilla unless flagged earlier
-    return False
+    doc = nlp(q)
+    words = [token.text for token in doc if token.is_alpha]
 
-# Chat input
+    reasoning_score = 0
+    quick_score = 0
+
+    # Length & clause complexity
+    if len(words) <= 5:
+        quick_score += 1
+    if len(words) > 20:
+        reasoning_score += 1
+    if any(token.dep_ == "conj" for token in doc) and "?" in q:
+        reasoning_score += 1
+
+    # Explanatory/comparative cues
+    explanation_cues = [
+        "why", "how", "explain", "difference", "compare",
+        "advantages", "disadvantages", "steps", "process",
+        "predict", "evaluate", "simulate"
+    ]
+    reasoning_score += sum(1 for cue in explanation_cues if cue in q)
+
+    # Numeric / calculation cues
+    if "calculate" in q and any(token.like_num for token in doc):
+        reasoning_score += 1
+
+    # Impact / effect cues
+    if "impact" in q or "effect" in q:
+        reasoning_score += 1
+
+    # Factoid cues → quick
+    factoid_cues = [
+        "what is", "who is", "when is", "define",
+        "location", "fee", "contact", "hostel", "mess", "address"
+    ]
+    if any(cue in q for cue in factoid_cues):
+        quick_score += 1
+
+    # Syntactic complexity
+    noun_chunks = list(doc.noun_chunks)
+    if len(noun_chunks) > 5:
+        reasoning_score += 1
+    if sum(1 for token in doc if token.pos_ in ["ADV", "ADJ"]) > 3:
+        reasoning_score += 1
+
+    # Semantic density
+    content_words = [w for w in words if w not in stop_words]
+    if len(content_words) / max(len(words), 1) > 0.6:
+        reasoning_score += 1
+
+    # Embedding-based semantic similarity
+    query_embedding = embed_model.encode(q, convert_to_tensor=True)
+    cosine_scores = util.cos_sim(query_embedding, deep_ref_embeddings)
+    max_score = cosine_scores.max().item()
+    if max_score > 0.6:
+        reasoning_score += 2  # strong signal
+
+    return reasoning_score > quick_score
+
+
+# ----------------------
+# 3️⃣ Modular pipeline executor
+# ----------------------
+def execute_pipeline(query: str, context: str, language: str, deepthink: bool):
+    mode_badge = "🧠 Deep Thinking" if deepthink else "⚡ Quick Answer"
+    placeholder = st.empty()
+    final_answer = ""
+    rag_result = {}
+
+    try:
+        placeholder.markdown(f"{mode_badge} — preparing response...")
+
+        if deepthink:
+            thinking_prompt = build_thinking_prompt(query, context)
+            thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
+
+            # Animate reasoning output
+            animated = ""
+            for ch in thinking_text:
+                animated += ch
+                placeholder.markdown(f"{mode_badge}\n\n**Thinking:** {animated}|")
+                time.sleep(0.01)
+            placeholder.markdown(f"{mode_badge}\n\n**Thinking:** {animated}")
+
+            # Modular RAG for final deep answer
+            time.sleep(0.25)
+            placeholder.markdown(f"{mode_badge}\n\n🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
+            rag_result = modular_rag_smart_answer(context, query, lang=language)
+            final_answer = rag_result.get("final", rag_result.get("error", "❌ Something went wrong."))
+
+        else:
+            # Vanilla RAG
+            final_answer = vanilla_rag_answer(context, query, lang=language)
+            rag_result = {
+                "thinking": "",
+                "primary": final_answer,
+                "critique": "",
+                "final": final_answer,
+            }
+
+        # Animate final answer
+        animated = "|"
+        for c in final_answer:
+            animated += c
+            placeholder.markdown(f"{mode_badge}\n\n{animated}|")
+            time.sleep(0.004)
+        placeholder.markdown(f"{mode_badge}\n\n{animated}")
+
+    except Exception as e:
+        placeholder.markdown(f"❌ Error: {e}")
+        final_answer = f"Error: {e}"
+        rag_result = {"final": final_answer}
+
+    return final_answer, rag_result, mode_badge
+
+
+# ----------------------
+# 4️⃣ Chat input handler
+# ----------------------
 if user_query := st.chat_input("Ask me about BITS Pilani anything"):
     query = user_query.strip()
     if not query:
         st.warning("Please type a question.")
     else:
-        # Append user message to history and show it
         st.session_state.chat_history.append({"role": "user", "content": query})
         with st.chat_message("user"):
             st.markdown(query)
 
-        # Context from retriever
+        # Retrieve context
         try:
             docs = retriever.get_relevant_documents(query)
             context = "\n".join([doc.page_content for doc in docs]) if docs else (
@@ -427,77 +549,20 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
             context = st.session_state.get("uploaded_content", "") or ""
             st.warning(f"Retriever failed: {e}")
 
-        # Auto-pipeline selection
-        use_smart = should_use_deepthink(query)
-        mode_badge = "🧠Deep Thinking" if use_smart else "⚡Quick Answer"
+        # Decide pipeline automatically using semantic DeepThink
+        use_deepthink = should_use_deepthink(query)
 
-        with st.chat_message("assistant"):
-            thinking_placeholder = st.empty()
-            try:
-                thinking_placeholder.markdown(f"{mode_badge} — preparing response...")
+        # Execute selected pipeline
+        final_answer, rag_result, mode_badge = execute_pipeline(
+            query, context, language, use_deepthink
+        )
 
-                if use_smart:
-                    # SMART PIPELINE
-                    thinking_prompt = build_thinking_prompt(query, context)
-                    thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
+        st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
+        st.session_state.just_streamed = True
 
-                    animated = ""
-                    for ch in thinking_text:
-                        animated += ch
-                        thinking_placeholder.markdown(f"{mode_badge}\n\n**Thinking:** {animated}|")
-                        time.sleep(0.01)
-                    thinking_placeholder.markdown(f"{mode_badge}\n\n**Thinking:** {animated}")
-
-                    time.sleep(0.25)
-                    thinking_placeholder.markdown(f"{mode_badge}\n\n🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
-
-                    rag_result = modular_rag_smart_answer(context, query, lang=language)
-                    final_answer = rag_result.get("final", rag_result.get("error", "❌ Something went wrong."))
-                else:
-                    # VANILLA PIPELINE
-                    final_answer = vanilla_rag_answer(context, query, lang=language)
-                    rag_result = {
-                        "thinking": "",
-                        "primary": final_answer,
-                        "critique": "",
-                        "final": final_answer,
-                    }
-
-                chat_record = {
-                    "question": query,
-                    "thinking": rag_result.get("thinking", ""),
-                    "primary": rag_result.get("primary", ""),
-                    "critique": rag_result.get("critique", ""),
-                    "final": rag_result.get("final", rag_result.get("error", "Sorry — something went wrong.")),
-                    "language": language
-                }
-
-                if "error" in rag_result:
-                    thinking_placeholder.markdown(f"{mode_badge}\n\n❌ Error while generating answer: {rag_result['error']}")
-                else:
-                    final_answer = chat_record["final"]
-                    animated = ""
-                    for c in final_answer:
-                        animated += c
-                        thinking_placeholder.markdown(f"{mode_badge}\n\n" + animated + "|")
-                        time.sleep(0.004)
-                    thinking_placeholder.markdown(f"{mode_badge}\n\n" + animated)
-
-                st.session_state.chat_history.append({"role": "assistant", "content": chat_record["final"]})
-                st.session_state.just_streamed = True
-
-                # Save to Firebase
-                if "uid" in st.session_state:
-                    save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
-
-            except Exception as e:
-                thinking_placeholder.markdown(f"❌ Error: {e}")
-                st.session_state.chat_history.append({
-                    "role": "assistant",
-                    "content": f"Error: {e}"
-                })
-                st.session_state.just_streamed = True
-
+        # Save chat to Firebase if logged in
+        if "uid" in st.session_state:
+            save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
 # ----------------- Display chat history (non-streamed older messages) -----------------
 if st.session_state.just_streamed and len(st.session_state.chat_history) > 0:
     history_to_show = st.session_state.chat_history[:-1]
