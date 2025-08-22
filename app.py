@@ -374,12 +374,39 @@ else:
 
     login_screen()
     st.stop()
-
-# ----------------- Main chat handler (single unified flow) -----------------
+# ----------------- Main chat handler (auto pipeline selection) -----------------
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
+def should_use_deepthink(query: str) -> bool:
+    """
+    Stronger heuristic: decide if query needs deep reasoning vs quick factual answer.
+    """
+    q = query.strip().lower()
+    words = q.split()
+    
+    # (1) Very short queries → Quick answer
+    if len(words) <= 5:
+        return False
+    
+    # (2) Very long / multi-clause queries → Deep reasoning
+    if len(words) > 20 or "?" in q and ("and" in q or "or" in q or "," in q):
+        return True
+    
+    # (3) Explanatory/comparative cues (but weighted, not raw keyword match)
+    explanation_cues = ["why", "how", "explain", "difference", "compare", "advantages", "disadvantages", "steps", "process"]
+    reasoning_score = sum(1 for cue in explanation_cues if cue in q)
+    if reasoning_score >= 1:
+        return True
+    
+    # (4) Default: if it looks like a definition/factoid (e.g., "what is", "who is") → Quick
+    factoid_cues = ["what is", "who is", "when is", "define", "location", "fee", "contact", "hostel", "mess", "address"]
+    if any(cue in q for cue in factoid_cues):
+        return False
+    
+    # (5) Fallback: moderately sized question → use vanilla unless flagged earlier
+    return False
 
-# Chat input - single place that drives everything
+# Chat input
 if user_query := st.chat_input("Ask me about BITS Pilani anything"):
     query = user_query.strip()
     if not query:
@@ -390,7 +417,7 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
         with st.chat_message("user"):
             st.markdown(query)
 
-        # Build context from retriever and uploaded content (always do this before calling the RAG pipeline)
+        # Context from retriever
         try:
             docs = retriever.get_relevant_documents(query)
             context = "\n".join([doc.page_content for doc in docs]) if docs else (
@@ -400,17 +427,17 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
             context = st.session_state.get("uploaded_content", "") or ""
             st.warning(f"Retriever failed: {e}")
 
-        # Thinking + RAG
+        # Auto-pipeline selection
+        use_smart = should_use_deepthink(query)
+        mode_badge = "🧠Deep Thinking (Auto)" if use_smart else "⚡Quick Answer (Auto)"
+
         with st.chat_message("assistant"):
             thinking_placeholder = st.empty()
             try:
-                use_smart = bool(st.session_state.get("use_smart_llm", False))
-                mode_badge = "🧠Deep Thinking" if use_smart else "⚡Quick Answer"
                 thinking_placeholder.markdown(f"{mode_badge} — preparing response...")
 
                 if use_smart:
-                    # ========== SMART PIPELINE ==========
-                    # Show a short "thinking" monologue (cheap)
+                    # SMART PIPELINE
                     thinking_prompt = build_thinking_prompt(query, context)
                     thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
 
@@ -427,8 +454,7 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
                     rag_result = modular_rag_smart_answer(context, query, lang=language)
                     final_answer = rag_result.get("final", rag_result.get("error", "❌ Something went wrong."))
                 else:
-                    # ========== VANILLA PIPELINE ==========
-                    # No "thinking monologue" in vanilla mode
+                    # VANILLA PIPELINE
                     final_answer = vanilla_rag_answer(context, query, lang=language)
                     rag_result = {
                         "thinking": "",
@@ -486,12 +512,6 @@ if st.session_state.just_streamed:
     st.session_state.just_streamed = False
 
 # ----------------- Sidebar history preview -----------------
-with st.sidebar:
-    st.subheader("📂 Chat History")
-    for i, chat in enumerate(reversed(st.session_state.chat_history)):
-        st.markdown(f"**Q{i}:** {chat.get('question', chat.get('content',''))}")
-        st.markdown(f"**A{i}:** {chat.get('final', chat.get('content',''))[:150]}...")
-        st.markdown("---")
 
 # ----------------- Footer -----------------
 st.markdown(
