@@ -375,31 +375,10 @@ else:
     login_screen()
     st.stop()
 # ----------------- Main chat handler (auto pipeline selection) -----------------
-import time
-import streamlit as st
-import spacy
-from nltk.corpus import stopwords
-from sentence_transformers import SentenceTransformer, util
 
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
 # ----------------------
-# 1️⃣ Load NLP & embedding models
-# ----------------------
-nlp = spacy.load("en_core_web_sm")
-stop_words = set(stopwords.words("english"))
-embed_model = SentenceTransformer("all-MiniLM-L6-v2")
-
-# Reference queries that always need deep reasoning
-deep_reasoning_refs = [
-    "Explain how something works",
-    "Compare advantages and disadvantages",
-    "Predict the outcome based on data",
-    "Evaluate the process step by step",
-    "Explain the impact or effect of X",
-    "Provide a detailed reasoning or analysis"
-]
-deep_ref_embeddings = embed_model.encode(deep_reasoning_refs, convert_to_tensor=True)
 
 
 # ----------------------
