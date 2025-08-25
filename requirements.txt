@@ -1,4 +1,3 @@
-
 nltk
 spacy
 streamlit
@@ -13,3 +12,9 @@ python-dotenv
 requests
 pillow
 firebase-admin
+torch
+transformers
+tqdm
+protobuf
+numpy
+typing-extensions
