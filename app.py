@@ -378,12 +378,19 @@ else:
 
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
-# ----------------------
+# ----------------- Main chat handler (auto pipeline selection) -----------------
+import time
+import streamlit as st
+from sentence_transformers import SentenceTransformer, util
 
+st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
 # ----------------------
-# 2️⃣ DeepThink heuristic with NLP + embeddings
+# 1️⃣ Load embedding model
 # ----------------------
+embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+# Reference queries that always need deep reasoning
 deep_reasoning_refs = [
     "Explain how something works",
     "Compare advantages and disadvantages",
@@ -394,14 +401,14 @@ deep_reasoning_refs = [
 ]
 deep_ref_embeddings = embed_model.encode(deep_reasoning_refs, convert_to_tensor=True)
 
+# ----------------------
+# 2️⃣ DeepThink heuristic
+# ----------------------
 def should_use_deepthink(query: str) -> bool:
-    """
-    Determines if a query needs deep reasoning.
-    Uses keywords, length, and semantic similarity.
-    """
+    """Decides if a query needs deep reasoning."""
     q = query.strip().lower()
 
-    # keyword-based heuristics
+    # keyword heuristics
     reasoning_keywords = [
         "why", "how", "explain", "difference", "compare",
         "advantages", "disadvantages", "steps", "process",
@@ -421,11 +428,10 @@ def should_use_deepthink(query: str) -> bool:
     if len(q.split()) > 15:
         return True
 
-    # semantic similarity to deep reasoning references
+    # semantic similarity
     query_embedding = embed_model.encode(q, convert_to_tensor=True)
     score = util.cos_sim(query_embedding, deep_ref_embeddings).max().item()
     return score > 0.6
-
 # ----------------------
 # 3️⃣ Modular pipeline executor
 # ----------------------
