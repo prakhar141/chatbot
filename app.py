@@ -1,13 +1,4 @@
 # cleaned_buddy.py
-import spacy
-from spacy.cli import download
-
-try:
-    nlp = spacy.load("en_core_web_sm")
-except OSError:
-    download("en_core_web_sm")
-    nlp = spacy.load("en_core_web_sm")
-
 import os
 import time
 import hashlib
@@ -414,71 +405,47 @@ deep_ref_embeddings = embed_model.encode(deep_reasoning_refs, convert_to_tensor=
 # ----------------------
 # 2️⃣ DeepThink heuristic with NLP + embeddings
 # ----------------------
+deep_reasoning_refs = [
+    "Explain how something works",
+    "Compare advantages and disadvantages",
+    "Predict the outcome based on data",
+    "Evaluate the process step by step",
+    "Explain the impact or effect of X",
+    "Provide a detailed reasoning or analysis"
+]
+deep_ref_embeddings = embed_model.encode(deep_reasoning_refs, convert_to_tensor=True)
+
 def should_use_deepthink(query: str) -> bool:
     """
     Determines if a query needs deep reasoning.
-    Uses: keywords, syntactic complexity, content density, and semantic similarity.
+    Uses keywords, length, and semantic similarity.
     """
     q = query.strip().lower()
-    doc = nlp(q)
-    words = [token.text for token in doc if token.is_alpha]
 
-    reasoning_score = 0
-    quick_score = 0
-
-    # Length & clause complexity
-    if len(words) <= 5:
-        quick_score += 1
-    if len(words) > 20:
-        reasoning_score += 1
-    if any(token.dep_ == "conj" for token in doc) and "?" in q:
-        reasoning_score += 1
-
-    # Explanatory/comparative cues
-    explanation_cues = [
+    # keyword-based heuristics
+    reasoning_keywords = [
         "why", "how", "explain", "difference", "compare",
         "advantages", "disadvantages", "steps", "process",
-        "predict", "evaluate", "simulate"
+        "predict", "evaluate", "simulate", "impact", "effect"
     ]
-    reasoning_score += sum(1 for cue in explanation_cues if cue in q)
-
-    # Numeric / calculation cues
-    if "calculate" in q and any(token.like_num for token in doc):
-        reasoning_score += 1
-
-    # Impact / effect cues
-    if "impact" in q or "effect" in q:
-        reasoning_score += 1
-
-    # Factoid cues → quick
-    factoid_cues = [
+    factoid_keywords = [
         "what is", "who is", "when is", "define",
         "location", "fee", "contact", "hostel", "mess", "address"
     ]
-    if any(cue in q for cue in factoid_cues):
-        quick_score += 1
 
-    # Syntactic complexity
-    noun_chunks = list(doc.noun_chunks)
-    if len(noun_chunks) > 5:
-        reasoning_score += 1
-    if sum(1 for token in doc if token.pos_ in ["ADV", "ADJ"]) > 3:
-        reasoning_score += 1
+    if any(k in q for k in reasoning_keywords):
+        return True
+    if any(k in q for k in factoid_keywords):
+        return False
 
-    # Semantic density
-    content_words = [w for w in words if w not in stop_words]
-    if len(content_words) / max(len(words), 1) > 0.6:
-        reasoning_score += 1
+    # length heuristic
+    if len(q.split()) > 15:
+        return True
 
-    # Embedding-based semantic similarity
+    # semantic similarity to deep reasoning references
     query_embedding = embed_model.encode(q, convert_to_tensor=True)
-    cosine_scores = util.cos_sim(query_embedding, deep_ref_embeddings)
-    max_score = cosine_scores.max().item()
-    if max_score > 0.6:
-        reasoning_score += 2  # strong signal
-
-    return reasoning_score > quick_score
-
+    score = util.cos_sim(query_embedding, deep_ref_embeddings).max().item()
+    return score > 0.6
 
 # ----------------------
 # 3️⃣ Modular pipeline executor
