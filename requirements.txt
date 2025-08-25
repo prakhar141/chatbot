@@ -1,32 +1,20 @@
-# --- Core NLP & Models ---
-en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
-spacy==3.7.4
 nltk==3.9.1
-sentence-transformers==2.6.1
-transformers==4.44.2
-torch==2.2.2
-tqdm==4.66.4
-
-# --- Vector DB & LangChain ---
-faiss-cpu==1.8.0
+spacy==3.7.4
+streamlit==1.37.1
 langchain==0.2.12
 langchain-community==0.2.11
-langchain-google-genai==0.0.12
-
-# --- PDF & File Handling ---
+faiss-cpu==1.8.0
+sentence-transformers==2.6.1
 PyMuPDF==1.24.9
-pillow==10.4.0
-
-# --- Cloud & API ---
 google-generativeai==0.8.3
-firebase-admin==6.5.0
+langchain-google-genai==0.0.12
 python-dotenv==1.0.1
 requests==2.32.3
-
-# --- Streamlit UI ---
-streamlit==1.37.1
-
-# --- Compatibility & Utils ---
-numpy==1.26.4
+pillow==10.4.0
+firebase-admin==6.5.0
+torch==2.2.2
+transformers==4.44.2
+tqdm==4.66.4
 protobuf==4.25.3
+numpy==1.26.4
 typing-extensions==4.12.2
