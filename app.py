@@ -103,7 +103,7 @@ with st.sidebar:
     language = st.selectbox("🌐 Response Language", ["English", "Hindi", "Telugu", "Tamil", "Marathi", "Bengali"])
     #st.checkbox("🧠Deep Think", value=False, key="use_smart_llm") 
     st.markdown("---")
-    st.checkbox("For fast loading", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
+    #st.checkbox("For fast loading", value=ENABLE_PERSISTENT_CACHE, key="enable_sqlite")
 
 # ----------------- SQLITE CACHE -----------------
 def init_sqlite(db_path: str = SQLITE_DB_PATH):
