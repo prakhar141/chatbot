@@ -374,9 +374,6 @@ else:
 
     login_screen()
     st.stop()
-# ----------------- Main chat handler (auto pipeline selection) -----------------
-
-st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
 # ----------------- Main chat handler (auto pipeline selection) -----------------
 import time
