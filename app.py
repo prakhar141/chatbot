@@ -296,7 +296,7 @@ def build_critic_prompt(context: str, question: str, answer: str) -> List[Dict[s
 def build_final_prompt(context: str, question: str, answer: str, critique: str, lang: str) -> List[Dict[str, str]]:
     return [
         {"role": "system", "content": (f"You are BitsBuddy with self-evaluation enabled.Use Relevant Emojis.Based on critique, "
-                                       f"revise your original answer. Be clear and concise in {lang}.") },
+                                       f"revise your original answer.Never invent or use outside knowledge. Stay faithful to CONTEXT only. Be clear and concise in {lang}.") },
         {"role": "user", "content": (f"Original Answer:\n{answer}\n\nCritique:\n{critique}\n\nNow improve the answer accordingly.")}
     ]
 
@@ -325,7 +325,7 @@ def modular_rag_smart_answer(context: str, question: str, lang: str = "English")
 def vanilla_rag_answer(context: str, question: str, lang: str = "English") -> str:
     """Simple retriever + one model answer, no self-critique or multi-step LLM calls."""
     prompt = [
-        {"role": "system", "content": f"You are BitsBuddy, a helpful BITS assistant.Never guess or make up facts. Answer ONLY if the question is directly related to BITS Pilani,otherwise tell ur capabilities politely. Answer clearly in {lang}."},
+        {"role": "system", "content": f"You are BitsBuddy, a helpful BITS assistant.Never guess or make up facts. Answer ONLY if the question is directly related to BITS Pilani,otherwise tell ur capabilities politely.Never invent or use outside knowledge. Stay faithful to CONTEXT only. Answer clearly in {lang}."},
         {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}"}
     ]
     try:
