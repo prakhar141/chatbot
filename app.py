@@ -166,31 +166,58 @@ def make_cache_key(model: str, messages: List[Dict[str, str]]):
     digest.update(json.dumps(messages, sort_keys=True, ensure_ascii=False).encode("utf-8"))
     return digest.hexdigest()
 
-# ----------------- Vector DB -----------------
-@st.cache_resource
-def load_vector_db(folder="."):
-    docs = []
-    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=50)
-    for file in os.listdir(folder):
-        if file.lower().endswith(".pdf"):
-            try:
-                with fitz.open(os.path.join(folder, file)) as doc:
-                    text = "\n".join(page.get_text() for page in doc)
-                    chunks = splitter.split_text(text)
-                    docs.extend([Document(page_content=c, metadata={"source": file}) for c in chunks])
-            except Exception as e:
-                st.warning(f"Could not read {file}: {e}")
 
-    if not docs:
+# ---------------- CONFIG ----------------
+EMBED_MODEL = "all-mpnet-base-v2"
+K_VAL = 4
+
+# Hugging Face URLs for prebuilt FAISS index
+FAISS_INDEX_URL = "https://huggingface.co/datasets/prakhar146/chatbot/resolve/main/index.faiss"
+FAISS_PKL_URL = "https://huggingface.co/datasets/prakhar146/chatbot/resolve/main/index.pkl"
+
+# Local directory to store downloaded files
+LOCAL_FAISS_DIR = "./faiss_store"
+os.makedirs(LOCAL_FAISS_DIR, exist_ok=True)
+LOCAL_INDEX_FILE = os.path.join(LOCAL_FAISS_DIR, "index.faiss")
+LOCAL_PKL_FILE = os.path.join(LOCAL_FAISS_DIR, "index.pkl")
+
+# ---------------- HELPER TO DOWNLOAD FILES ----------------
+def download_if_not_exists(url: str, local_path: str):
+    if not os.path.exists(local_path):
+        st.info(f"Downloading {os.path.basename(local_path)} ...")
+        r = requests.get(url, stream=True)
+        r.raise_for_status()
+        with open(local_path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk)
+        st.success(f"Downloaded {os.path.basename(local_path)}")
+
+# ---------------- LOAD VECTOR DB ----------------
+@st.cache_resource
+def load_vector_db_from_hf():
+    try:
+        # Download files if missing
+        download_if_not_exists(FAISS_INDEX_URL, LOCAL_INDEX_FILE)
+        download_if_not_exists(FAISS_PKL_URL, LOCAL_PKL_FILE)
+
+        # Load the FAISS index
+        embedder = HuggingFaceEmbeddings(model_name=EMBED_MODEL)
+        vectordb = FAISS.load_local(LOCAL_FAISS_DIR, embedder)
+
+        # Return retriever
+        return vectordb.as_retriever(search_type="similarity", k=K_VAL)
+
+    except Exception as e:
+        st.warning(f"Failed to load vector DB: {e}")
+
         class EmptyRetriever:
-            def get_relevant_documents(self, q): return []
+            def get_relevant_documents(self, query):
+                return []
+
         return EmptyRetriever()
 
-    embedder = HuggingFaceEmbeddings(model_name=EMBED_MODEL)
-    vectordb = FAISS.from_documents(docs, embedder)
-    return vectordb.as_retriever(search_type="similarity", k=K_VAL)
-
-retriever = load_vector_db()
+# ---------------- LOAD RETRIEVER ----------------
+retriever = load_vector_db_from_hf()
 
 # ----------------- OpenRouter helpers (unchanged) -----------------
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
