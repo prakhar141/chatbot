@@ -184,13 +184,11 @@ LOCAL_PKL_FILE = os.path.join(LOCAL_FAISS_DIR, "index.pkl")
 # ---------------- HELPER TO DOWNLOAD FILES ----------------
 def download_if_not_exists(url: str, local_path: str):
     if not os.path.exists(local_path):
-        st.info(f"Downloading {os.path.basename(local_path)} ...")
         r = requests.get(url, stream=True)
         r.raise_for_status()
         with open(local_path, "wb") as f:
             for chunk in r.iter_content(chunk_size=8192):
                 f.write(chunk)
-        st.success(f"Downloaded {os.path.basename(local_path)}")
 
 # ---------------- LOAD VECTOR DB ----------------
 @st.cache_resource
