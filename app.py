@@ -200,11 +200,14 @@ def load_vector_db_from_hf():
         download_if_not_exists(FAISS_INDEX_URL, LOCAL_INDEX_FILE)
         download_if_not_exists(FAISS_PKL_URL, LOCAL_PKL_FILE)
 
-        # Load the FAISS index
+        # Load the FAISS index with safe override
         embedder = HuggingFaceEmbeddings(model_name=EMBED_MODEL)
-        vectordb = FAISS.load_local(LOCAL_FAISS_DIR, embedder)
+        vectordb = FAISS.load_local(
+            LOCAL_FAISS_DIR,
+            embedder,
+            allow_dangerous_deserialization=True  # ✅ required to read index.pkl
+        )
 
-        # Return retriever
         return vectordb.as_retriever(search_type="similarity", k=K_VAL)
 
     except Exception as e:
