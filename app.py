@@ -219,6 +219,34 @@ def load_vector_db_from_hf():
 
 # ---------------- LOAD RETRIEVER ----------------
 retriever = load_vector_db_from_hf()
+from bs4 import BeautifulSoup
+
+# ---------------------- 0️⃣ Real-time BITSAdmission content ----------------------
+BITSADMISSION_URLS = [
+    "https://www.bitsadmission.com/index.html",
+    "https://www.bitsadmission.com/FD/FD.html"
+]
+
+def fetch_bitsadmission_content() -> str:
+    """Fetch and combine all relevant BITSAdmission pages in plain text."""
+    combined_text = ""
+    for url in BITSADMISSION_URLS:
+        try:
+            r = requests.get(url, timeout=10)
+            r.raise_for_status()
+            soup = BeautifulSoup(r.text, "html.parser")
+            for script in soup(["script", "style"]):
+                script.decompose()
+            text = soup.get_text(separator="\n")
+            text = "\n".join([line.strip() for line in text.splitlines() if line.strip()])
+            combined_text += f"\n\n=== Content from {url} ===\n{text}"
+        except Exception as e:
+            combined_text += f"\n\n⚠️ Failed to fetch {url}: {e}"
+    return combined_text
+
+# Cache website content in session to avoid multiple requests
+if "bitsadmission_content" not in st.session_state:
+    st.session_state.bitsadmission_content = fetch_bitsadmission_content()
 
 # ----------------- OpenRouter helpers (unchanged) -----------------
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -516,7 +544,7 @@ def execute_pipeline(query: str, context: str, language: str, deepthink: bool):
 # ----------------------
 # 4️⃣ Chat input handler
 # ----------------------
-if user_query := st.chat_input("Ask me about BITS Pilani anything"):
+if user_query := st.chat_input("Ask me about BITS Pilani Admission"):
     query = user_query.strip()
     if not query:
         st.warning("Please type a question.")
@@ -525,30 +553,44 @@ if user_query := st.chat_input("Ask me about BITS Pilani anything"):
         with st.chat_message("user"):
             st.markdown(query)
 
+        # ----------------------
         # Retrieve context
+        # ----------------------
         try:
+            # Retrieve FAISS context
             docs = retriever.get_relevant_documents(query)
-            context = "\n".join([doc.page_content for doc in docs]) if docs else (
-                st.session_state.get("uploaded_content", "") or ""
-            )
+            faiss_context = "\n".join([doc.page_content for doc in docs]) if docs else ""
         except Exception as e:
-            context = st.session_state.get("uploaded_content", "") or ""
+            faiss_context = ""
             st.warning(f"Retriever failed: {e}")
 
+        # Combine BITSAdmission + FAISS + uploaded content
+        context = (
+            st.session_state.bitsadmission_content + "\n\n" +
+            faiss_context + "\n\n" +
+            (st.session_state.get("uploaded_content", "") or "")
+        )
+
+        # ----------------------
         # Decide pipeline automatically using semantic DeepThink
+        # ----------------------
         use_deepthink = should_use_deepthink(query)
 
+        # ----------------------
         # Execute selected pipeline
+        # ----------------------
         final_answer, rag_result, mode_badge = execute_pipeline(
             query, context, language, use_deepthink
         )
 
+        # Append assistant response to chat history
         st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
         st.session_state.just_streamed = True
 
         # Save chat to Firebase if logged in
         if "uid" in st.session_state:
             save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
+
 # ----------------- Display chat history (non-streamed older messages) -----------------
 if st.session_state.just_streamed and len(st.session_state.chat_history) > 0:
     history_to_show = st.session_state.chat_history[:-1]
