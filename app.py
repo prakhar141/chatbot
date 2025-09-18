@@ -26,7 +26,7 @@ MODEL_MID = os.getenv("MODEL_MID") or "openai/gpt-oss-20b:free"
 MODEL_HIGH = os.getenv("MODEL_HIGH") or "deepseek/deepseek-r1-0528:free"
 MODEL_FALLBACKS = [MODEL_MID, MODEL_CHEAP]
 
-EMBED_MODEL = os.getenv("EMBED_MODEL") or "sentence-transformers/all-MiniLM-L6-v2"
+EMBED_MODEL = os.getenv("EMBED_MODEL") or "multi-qa-mpnet-base-dot-v1"
 K_VAL = int(os.getenv("K_VAL") or 4)
 
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
