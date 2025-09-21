@@ -590,52 +590,57 @@ def is_vague_query(query: str) -> bool:
     # Otherwise, assume it's a new topic
     return False
 
-
 # ----------------------
-# 4️⃣ Chat input handler
+# 4️⃣ Chat Input Handler
 # ----------------------
-if user_query := st.chat_input("Ask me about BITS Pilani Admission"):
+if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
     query = user_query.strip()
+
+    # ----------------------
+    # Empty Input Guard
+    # ----------------------
     if not query:
-        st.warning("Please type a question.")
+        st.warning("⚠️ Please type a question before submitting.")
     else:
+        # Save user query in chat history
         st.session_state.chat_history.append({"role": "user", "content": query})
+
+        # Display user message in chat
         with st.chat_message("user"):
             st.markdown(query)
 
         # ----------------------
-        # Retrieve context
+        # Context Retrieval
         # ----------------------
         try:
-            # Retrieve FAISS context
             docs = retriever.get_relevant_documents(query)
             faiss_context = "\n".join([doc.page_content for doc in docs]) if docs else ""
         except Exception as e:
             faiss_context = ""
-            st.warning(f"Retriever failed: {e}")
+            st.warning(f"⚠️ Retriever failed: {e}")
 
-        # Combine BITSAdmission + FAISS + uploaded content
+        # Merge context sources: BITS Admission site + FAISS + Uploaded docs
         context = (
-            st.session_state.bitsadmission_content + "\n\n" +
-            faiss_context + "\n\n" +
-            (st.session_state.get("uploaded_content", "") or "")
+            st.session_state.bitsadmission_content + "\n\n"
+            + faiss_context + "\n\n"
+            + (st.session_state.get("uploaded_content", "") or "")
         )
 
         # ----------------------
-        # Decide pipeline automatically using semantic DeepThink
+        # Decide pipeline: DeepThink or Standard
         # ----------------------
         use_deepthink = should_use_deepthink(query)
 
         # ----------------------
-        # Clarification mode check
+        # Clarification Mode (short/vague queries)
         # ----------------------
         if is_vague_query(query) and len(st.session_state.chat_history) > 0:
-            # Get last assistant message
             last_assistant_msg = next(
                 (m["content"] for m in reversed(st.session_state.chat_history)
                  if m["role"] == "assistant"),
                 ""
             )
+
             clarification_prompt = build_clarification_prompt(
                 last_assistant_msg, query, language
             )
@@ -644,27 +649,29 @@ if user_query := st.chat_input("Ask me about BITS Pilani Admission"):
             )
             rag_result = {"final": final_answer}
             mode_badge = "♻️ Clarification Mode"
+
         else:
-            # Normal pipeline
             final_answer, rag_result, mode_badge = execute_pipeline(
                 query, context, language, use_deepthink
             )
 
         # ----------------------
-        # Append assistant response to chat history
+        # Display Assistant Response
         # ----------------------
+        with st.chat_message("assistant"):
+            st.markdown(f"**{mode_badge}**\n\n{final_answer}")
+
+        # Save assistant reply in chat history
         st.session_state.chat_history.append(
             {"role": "assistant", "content": final_answer}
         )
         st.session_state.just_streamed = True
 
         # ----------------------
-        # Save chat to Firebase if logged in
+        # Save to Firebase (if user logged in)
         # ----------------------
         if "uid" in st.session_state:
             save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
-
-
 
 # ----------------- Display chat history (non-streamed older messages) -----------------
 if st.session_state.just_streamed and len(st.session_state.chat_history) > 0:
