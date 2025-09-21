@@ -9,7 +9,7 @@ import requests
 from PIL import Image
 import streamlit as st
 from typing import List, Dict, Any, Optional
-
+import re
 # LangChain/FAISS imports
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -18,6 +18,9 @@ from langchain.docstore.document import Document
 
 import firebase_admin
 from firebase_admin import credentials, auth, db
+import time
+import streamlit as st
+from sentence_transformers import SentenceTransformer, util
 
 # ========== CONFIG (tweak these models per your OpenRouter access) ==========
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "YOUR_API_KEY"
@@ -417,7 +420,7 @@ else:
     # show login screen if not authenticated (define login_screen elsewhere or reuse your function)
     def login_screen():
         st.title("🔐 BITS Buddy Login")
-        st.markdown("Please log in to continue")
+        st.markdown("Please login/Signup to continue")
         name = st.text_input("Full Name")
         email = st.text_input("Email")
         password = st.text_input("Password", type="password")
@@ -449,9 +452,6 @@ else:
     st.stop()
 
 # ----------------- Main chat handler (auto pipeline selection) -----------------
-import time
-import streamlit as st
-from sentence_transformers import SentenceTransformer, util
 
 st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
@@ -556,6 +556,40 @@ def execute_pipeline(query: str, context: str, language: str, deepthink: bool):
         rag_result = {"final": final_answer}
 
     return final_answer, rag_result, mode_badge
+# ----------------------
+# Clarification detector
+# ----------------------
+def is_vague_query(query: str) -> bool:
+    """
+    Detects whether the query is vague / clarification-based rather than a new topic.
+    Returns True if it's likely a clarification query (e.g., 'explain again', 'I didn’t get it').
+    """
+    q = query.lower().strip()
+
+    # Very short queries (1–5 words) are often vague
+    if len(q.split()) <= 5:
+        return True
+
+    # Explicit clarification patterns
+    clarification_patterns = [
+        r"\b(explain|repeat|rephrase|simplify|clarify)\b",
+        r"\bi (did not|didn't|dont|don’t) understand\b",
+        r"\bi (did not|didn't) get it\b",
+        r"\btell me (again|differently)\b",
+        r"\bwhat do you mean\b",
+        r"\bmake (it|this) (simple|clear)\b"
+    ]
+    if any(re.search(p, q) for p in clarification_patterns):
+        return True
+
+    # If query is a generic question word + nothing else → vague
+    generic_queries = {"what", "why", "how", "again", "repeat"}
+    if q in generic_queries:
+        return True
+
+    # Otherwise, assume it's a new topic
+    return False
+
 
 # ----------------------
 # 4️⃣ Chat input handler
@@ -631,41 +665,6 @@ if user_query := st.chat_input("Ask me about BITS Pilani Admission"):
             save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
 
 
-# ----------------------
-# Clarification detector
-# ----------------------
-import re
-
-def is_vague_query(query: str) -> bool:
-    """
-    Detects whether the query is vague / clarification-based rather than a new topic.
-    Returns True if it's likely a clarification query (e.g., 'explain again', 'I didn’t get it').
-    """
-    q = query.lower().strip()
-
-    # Very short queries (1–5 words) are often vague
-    if len(q.split()) <= 5:
-        return True
-
-    # Explicit clarification patterns
-    clarification_patterns = [
-        r"\b(explain|repeat|rephrase|simplify|clarify)\b",
-        r"\bi (did not|didn't|dont|don’t) understand\b",
-        r"\bi (did not|didn't) get it\b",
-        r"\btell me (again|differently)\b",
-        r"\bwhat do you mean\b",
-        r"\bmake (it|this) (simple|clear)\b"
-    ]
-    if any(re.search(p, q) for p in clarification_patterns):
-        return True
-
-    # If query is a generic question word + nothing else → vague
-    generic_queries = {"what", "why", "how", "again", "repeat"}
-    if q in generic_queries:
-        return True
-
-    # Otherwise, assume it's a new topic
-    return False
 
 # ----------------- Display chat history (non-streamed older messages) -----------------
 if st.session_state.just_streamed and len(st.session_state.chat_history) > 0:
