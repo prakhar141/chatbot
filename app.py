@@ -388,6 +388,23 @@ def vanilla_rag_answer(context: str, question: str, lang: str = "English") -> st
         return query_models_with_fallbacks([MODEL_MID] + MODEL_FALLBACKS, prompt)
     except Exception as e:
         return f"⚠️ Error generating answer: {e}"
+        
+def build_clarification_prompt(last_answer: str, user_query: str, lang: str = "English"):
+    return [
+        {
+            "role": "system",
+            "content": (
+                f"You are BitsBuddy. The user did not understand your previous answer. "
+                f"Re-explain it clearly, differently, and simply. "
+                f"Do NOT introduce new context or use outside information. "
+                f"Just restate or simplify your last response. Answer in {lang}."
+            )
+        },
+        {
+            "role": "user",
+            "content": f"Previous Answer:\n{last_answer}\n\nUser Query:\n{user_query}"
+        }
+    ]
 
 # ----------------- Session init -----------------
 if "authenticated" in st.session_state and st.session_state["authenticated"]:
@@ -540,7 +557,6 @@ def execute_pipeline(query: str, context: str, language: str, deepthink: bool):
 
     return final_answer, rag_result, mode_badge
 
-
 # ----------------------
 # 4️⃣ Chat input handler
 # ----------------------
@@ -577,19 +593,79 @@ if user_query := st.chat_input("Ask me about BITS Pilani Admission"):
         use_deepthink = should_use_deepthink(query)
 
         # ----------------------
-        # Execute selected pipeline
+        # Clarification mode check
         # ----------------------
-        final_answer, rag_result, mode_badge = execute_pipeline(
-            query, context, language, use_deepthink
-        )
+        if is_vague_query(query) and len(st.session_state.chat_history) > 0:
+            # Get last assistant message
+            last_assistant_msg = next(
+                (m["content"] for m in reversed(st.session_state.chat_history)
+                 if m["role"] == "assistant"),
+                ""
+            )
+            clarification_prompt = build_clarification_prompt(
+                last_assistant_msg, query, language
+            )
+            final_answer = query_models_with_fallbacks(
+                [MODEL_MID] + MODEL_FALLBACKS, clarification_prompt
+            )
+            rag_result = {"final": final_answer}
+            mode_badge = "♻️ Clarification Mode"
+        else:
+            # Normal pipeline
+            final_answer, rag_result, mode_badge = execute_pipeline(
+                query, context, language, use_deepthink
+            )
 
+        # ----------------------
         # Append assistant response to chat history
-        st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
+        # ----------------------
+        st.session_state.chat_history.append(
+            {"role": "assistant", "content": final_answer}
+        )
         st.session_state.just_streamed = True
 
+        # ----------------------
         # Save chat to Firebase if logged in
+        # ----------------------
         if "uid" in st.session_state:
             save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
+
+
+# ----------------------
+# Clarification detector
+# ----------------------
+import re
+
+def is_vague_query(query: str) -> bool:
+    """
+    Detects whether the query is vague / clarification-based rather than a new topic.
+    Returns True if it's likely a clarification query (e.g., 'explain again', 'I didn’t get it').
+    """
+    q = query.lower().strip()
+
+    # Very short queries (1–5 words) are often vague
+    if len(q.split()) <= 5:
+        return True
+
+    # Explicit clarification patterns
+    clarification_patterns = [
+        r"\b(explain|repeat|rephrase|simplify|clarify)\b",
+        r"\bi (did not|didn't|dont|don’t) understand\b",
+        r"\bi (did not|didn't) get it\b",
+        r"\btell me (again|differently)\b",
+        r"\bwhat do you mean\b",
+        r"\bmake (it|this) (simple|clear)\b"
+    ]
+    if any(re.search(p, q) for p in clarification_patterns):
+        return True
+
+    # If query is a generic question word + nothing else → vague
+    generic_queries = {"what", "why", "how", "again", "repeat"}
+    if q in generic_queries:
+        return True
+
+    # Otherwise, assume it's a new topic
+    return False
 
 # ----------------- Display chat history (non-streamed older messages) -----------------
 if st.session_state.just_streamed and len(st.session_state.chat_history) > 0:
