@@ -593,9 +593,6 @@ def is_vague_query(query: str) -> bool:
 # ----------------------
 # 4️⃣ Chat Input Handler
 # ----------------------
-# ----------------------
-# 4️⃣ Chat Input Handler
-# ----------------------
 if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
     query = user_query.strip()
 
@@ -605,11 +602,13 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
     if not query:
         st.warning("⚠️ Please type a question before submitting.")
     else:
-        # Save user query in chat history
+        # ----------------------
+        # Save user query
+        # ----------------------
         st.session_state.chat_history.append({"role": "user", "content": query})
 
         # ----------------------
-        # Context Retrieval
+        # Retrieve context
         # ----------------------
         try:
             docs = retriever.get_relevant_documents(query)
@@ -618,79 +617,63 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
             faiss_context = ""
             st.warning(f"⚠️ Retriever failed: {e}")
 
-        # Merge context sources
         context = (
             st.session_state.bitsadmission_content + "\n\n"
             + faiss_context + "\n\n"
             + (st.session_state.get("uploaded_content", "") or "")
         )
 
-        # Decide pipeline
+        # ----------------------
+        # Decide pipeline: DeepThink or Standard
+        # ----------------------
         use_deepthink = should_use_deepthink(query)
 
-        # Clarification Mode (short/vague queries)
+        # ----------------------
+        # Clarification or Normal pipeline
+        # ----------------------
         if is_vague_query(query) and len(st.session_state.chat_history) > 0:
             last_assistant_msg = next(
                 (m["content"] for m in reversed(st.session_state.chat_history)
                  if m["role"] == "assistant"),
                 ""
             )
-            clarification_prompt = build_clarification_prompt(
-                last_assistant_msg, query, language
-            )
-            final_answer = query_models_with_fallbacks(
-                [MODEL_MID] + MODEL_FALLBACKS, clarification_prompt
-            )
-            rag_result = {"final": final_answer}
+            clarification_prompt = build_clarification_prompt(last_assistant_msg, query, language)
+            final_answer = query_models_with_fallbacks([MODEL_MID] + MODEL_FALLBACKS, clarification_prompt)
             mode_badge = "♻️ Clarification Mode"
         else:
-            final_answer, rag_result, mode_badge = execute_pipeline(
-                query, context, language, use_deepthink
-            )
+            final_answer, _, mode_badge = execute_pipeline(query, context, language, use_deepthink)
 
-        # Save assistant reply in chat history
+        # ----------------------
+        # Save assistant reply with mode badge
+        # ----------------------
         st.session_state.chat_history.append(
-            {"role": "assistant", "content": final_answer}
+            {"role": "assistant", "content": final_answer, "badge": mode_badge}
         )
-        st.session_state.just_streamed = True
 
-        # Save to Firebase (if user logged in)
+        # ----------------------
+        # Save to Firebase if logged in
+        # ----------------------
         if "uid" in st.session_state:
             save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
 
 # ----------------------
-# Display Chat History
+# Display entire chat history
 # ----------------------
-# Skip the last streamed user + assistant if just streamed to avoid duplication
-history_to_show = (
-    st.session_state.chat_history[:-2]
-    if st.session_state.get("just_streamed", False) and len(st.session_state.chat_history) >= 2
-    else st.session_state.chat_history
-)
-
-for chat in history_to_show:
+for chat in st.session_state.chat_history:
     with st.chat_message(chat["role"]):
-        # Style assistant messages with mode badge if available
-        if chat["role"] == "assistant" and st.session_state.get("just_streamed", False):
-            st.markdown(f"**{mode_badge}**", unsafe_allow_html=True)
+        if chat["role"] == "assistant" and "badge" in chat:
+            # Display badge above the assistant message
+            st.markdown(
+                f"""
+                <div style="padding:6px 12px; background-color:#f0f5ff;
+                            border-left:4px solid #2f54eb; border-radius:4px;
+                            display:inline-block; margin-bottom:6px;">
+                    {chat['badge']}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
         st.markdown(chat["content"], unsafe_allow_html=True)
-
-# Reset just_streamed flag after rendering
-st.session_state.just_streamed = False
-# ----------------- Display chat history (non-streamed older messages) -----------------
-if st.session_state.just_streamed and len(st.session_state.chat_history) > 0:
-    history_to_show = st.session_state.chat_history[:-1]
-else:
-    history_to_show = st.session_state.chat_history
-
-for chat in (history_to_show):
-    with st.chat_message("user" if chat.get("role") == "user" else "assistant"):
-        st.markdown(chat.get("content", ""))
-
-if st.session_state.just_streamed:
-    st.session_state.just_streamed = False
-
-# ----------------- Sidebar history preview -----------------
 
 # ----------------- Footer -----------------
 st.markdown(
