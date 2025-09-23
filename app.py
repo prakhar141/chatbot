@@ -398,9 +398,9 @@ def build_clarification_prompt(last_answer: str, user_query: str, lang: str = "E
             "role": "system",
             "content": (
                 f"You are BitsBuddy. The user did not understand your previous answer. "
-                f"Re-explain it clearly, differently, and simply. "
+                f"Re-explain it step by step as if to a beginner "
                 f"Do NOT introduce new context or use outside information. "
-                f"Just restate or simplify your last response. Answer in {lang}."
+                f"Reanswer it from scratch.Answer in {lang}."
             )
         },
         {
