@@ -171,7 +171,7 @@ def make_cache_key(model: str, messages: List[Dict[str, str]]):
 
 
 # ---------------- CONFIG ----------------
-EMBED_MODEL = "all-mpnet-base-v2"
+EMBED_MODEL = "multi-qa-mpnet-base-dot-v1"
 K_VAL = 4
 
 # Hugging Face URLs for prebuilt FAISS index
