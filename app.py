@@ -596,20 +596,11 @@ def is_vague_query(query: str) -> bool:
 if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
     query = user_query.strip()
 
-    # ----------------------
-    # Empty Input Guard
-    # ----------------------
     if not query:
         st.warning("⚠️ Please type a question before submitting.")
     else:
-        # ----------------------
-        # Save user query
-        # ----------------------
         st.session_state.chat_history.append({"role": "user", "content": query})
 
-        # ----------------------
-        # Retrieve context
-        # ----------------------
         try:
             docs = retriever.get_relevant_documents(query)
             faiss_context = "\n".join([doc.page_content for doc in docs]) if docs else ""
@@ -623,14 +614,8 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
             + (st.session_state.get("uploaded_content", "") or "")
         )
 
-        # ----------------------
-        # Decide pipeline: DeepThink or Standard
-        # ----------------------
         use_deepthink = should_use_deepthink(query)
 
-        # ----------------------
-        # Clarification or Normal pipeline
-        # ----------------------
         if is_vague_query(query) and len(st.session_state.chat_history) > 0:
             last_assistant_msg = next(
                 (m["content"] for m in reversed(st.session_state.chat_history)
@@ -643,26 +628,19 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
         else:
             final_answer, _, mode_badge = execute_pipeline(query, context, language, use_deepthink)
 
-        # ----------------------
-        # Save assistant reply with mode badge
-        # ----------------------
         st.session_state.chat_history.append(
             {"role": "assistant", "content": final_answer, "badge": mode_badge}
         )
 
-        # ----------------------
-        # Save to Firebase if logged in
-        # ----------------------
         if "uid" in st.session_state:
             save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
 
 # ----------------------
-# Display entire chat history
+# Display chat history
 # ----------------------
 for chat in st.session_state.chat_history:
     with st.chat_message(chat["role"]):
         if chat["role"] == "assistant" and "badge" in chat:
-            # Display badge above the assistant message
             st.markdown(
                 f"""
                 <div style="padding:6px 12px; background-color:#f0f5ff;
