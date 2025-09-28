@@ -410,10 +410,6 @@ def build_clarification_prompt(last_answer: str, user_query: str, lang: str = "E
     ]
 
 # ----------------- Session init -----------------
-import streamlit as st
-import firebase_admin
-from firebase_admin import credentials, auth
-
 # Initialize Firebase (make sure to replace this with your Firebase credentials)
 if not firebase_admin._apps:
     try:
@@ -548,6 +544,7 @@ if "authenticated" in st.session_state and st.session_state["authenticated"]:
 else:
     # Show login screen if not authenticated
     def login_screen():
+        # Ensure the form container is properly styled and no empty containers
         st.markdown('<div class="login-container">', unsafe_allow_html=True)
         
         # Title and Subtitle
@@ -581,11 +578,12 @@ else:
                     st.session_state["user_uid"] = user.uid
                     st.session_state["user_name"] = name
                     st.session_state["authenticated"] = True
-                    st.experimental_rerun()
+                    st.rerun()
                 except Exception as e:
                     st.error(f"⚠️ Authentication failed: {e}")
                     return False
 
+        # Removed unnecessary footer
         st.markdown('</div>', unsafe_allow_html=True)
 
     login_screen()
