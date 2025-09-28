@@ -410,6 +410,11 @@ def build_clarification_prompt(last_answer: str, user_query: str, lang: str = "E
     ]
 
 # ----------------- Session init -----------------
+import streamlit as st
+import firebase_admin
+from firebase_admin import credentials, auth
+
+# Initialize Firebase (make sure to replace this with your Firebase credentials)
 if not firebase_admin._apps:
     try:
         firebase_config = dict(st.secrets["firebase"])
@@ -585,6 +590,7 @@ else:
 
     login_screen()
     st.stop()
+
 # ----------------- Main chat handler (auto pipeline selection) -----------------
 
 st.title(f"What's your agenda today? {st.session_state.get('user_name', 'User')} 👋")
