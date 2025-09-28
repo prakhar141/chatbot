@@ -410,11 +410,6 @@ def build_clarification_prompt(last_answer: str, user_query: str, lang: str = "E
     ]
 
 # ----------------- Session init -----------------
-import streamlit as st
-import firebase_admin
-from firebase_admin import credentials, auth
-
-# Initialize Firebase (make sure to replace this with your Firebase credentials)
 if not firebase_admin._apps:
     try:
         firebase_config = dict(st.secrets["firebase"])
@@ -431,48 +426,84 @@ else:
 # Custom styles for the login page
 st.markdown("""
     <style>
+        /* Global Styles */
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f4f7fa;
+            margin: 0;
+            padding: 0;
+        }
         .login-container {
-            padding: 30px;
+            padding: 40px 50px;
+            background-color: white;
             border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            background-color: #f0f5ff;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
             width: 400px;
-            margin: 0 auto;
+            margin: auto;
+            text-align: center;
         }
         .login-title {
-            text-align: center;
-            color: #2f54eb;
             font-size: 36px;
-            font-weight: bold;
+            color: #2f54eb;
+            font-weight: 600;
         }
-        .login-form {
-            margin-top: 20px;
+        .login-subtitle {
+            font-size: 18px;
+            color: #555;
+            margin-bottom: 30px;
+        }
+        .form-input {
+            margin-bottom: 20px;
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #dcdfe6;
+            border-radius: 5px;
+            outline: none;
+        }
+        .form-input:focus {
+            border-color: #2f54eb;
         }
         .stButton>button {
             background-color: #2f54eb;
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 14px 0;
             border-radius: 5px;
-            font-size: 16px;
+            font-size: 18px;
+            width: 100%;
             cursor: pointer;
         }
         .stButton>button:hover {
             background-color: #1d39c4;
         }
-        .stError {
+        .error-message {
             background-color: #ff4d4f;
             color: white;
             padding: 10px;
             border-radius: 5px;
             margin-top: 10px;
+            font-size: 14px;
         }
-        .stSuccess {
+        .success-message {
             background-color: #52c41a;
             color: white;
             padding: 10px;
             border-radius: 5px;
             margin-top: 10px;
+            font-size: 14px;
+        }
+        .login-logo {
+            margin-bottom: 20px;
+        }
+        .login-footer {
+            font-size: 14px;
+            color: #888;
+            margin-top: 20px;
+        }
+        .login-footer a {
+            color: #2f54eb;
+            text-decoration: none;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -488,20 +519,23 @@ else:
     # Show login screen if not authenticated
     def login_screen():
         st.markdown('<div class="login-container">', unsafe_allow_html=True)
+        
+        # Logo section (replace with your logo)
+        #st.image("bits_logo.jpg", width=100, use_column_width=True)
+        
         st.markdown('<h2 class="login-title">Welcome to BITS Buddy</h2>', unsafe_allow_html=True)
+        st.markdown('<p class="login-subtitle">Please login or sign up to continue</p>', unsafe_allow_html=True)
         
         with st.form(key='login_form', clear_on_submit=True):
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                name = st.text_input("Full Name", placeholder="Enter your full name")
-                email = st.text_input("Email", placeholder="Enter your email")
-                password = st.text_input("Password", type="password", placeholder="Enter your password")
+            name = st.text_input("Full Name", placeholder="Enter your full name", key="name", class_="form-input")
+            email = st.text_input("Email", placeholder="Enter your email", key="email", class_="form-input")
+            password = st.text_input("Password", type="password", placeholder="Enter your password", key="password", class_="form-input")
             
             submit_button = st.form_submit_button("Login / Sign Up")
             
             if submit_button:
                 if not name or not email or not password:
-                    st.error("⚠️ Please fill in all fields.")
+                    st.error("⚠️ Please fill in all fields.", icon="🚨")
                     return False
                 try:
                     email_norm = email.strip().lower()
@@ -522,6 +556,10 @@ else:
                 except Exception as e:
                     st.error(f"⚠️ Authentication failed: {e}")
                     return False
+
+        st.markdown('<div class="login-footer">', unsafe_allow_html=True)
+        st.markdown('<p>Already have an account? <a href="#">Login here</a></p>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     login_screen()
