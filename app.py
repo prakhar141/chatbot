@@ -424,7 +424,7 @@ if not firebase_admin._apps:
 else:
     firebase_admin.get_app()
 
-# Custom styles for the login page
+# Custom styles for the login page with animations
 st.markdown("""
     <style>
         /* Global Styles */
@@ -433,6 +433,7 @@ st.markdown("""
             background-color: #f4f7fa;
             margin: 0;
             padding: 0;
+            animation: fadeIn 1.5s ease-in;
         }
         .login-container {
             padding: 40px 50px;
@@ -442,16 +443,39 @@ st.markdown("""
             width: 400px;
             margin: auto;
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            opacity: 0;
+            animation: fadeIn 1.5s ease-in 0.5s forwards;
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
         }
         .login-title {
             font-size: 36px;
             color: #2f54eb;
             font-weight: 600;
+            animation: slideIn 1s ease-out;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(-50%);
+            }
+            to {
+                transform: translateX(0);
+            }
         }
         .login-subtitle {
             font-size: 18px;
             color: #555;
             margin-bottom: 30px;
+            animation: slideIn 1s ease-out 0.5s;
         }
         .form-input {
             margin-bottom: 20px;
@@ -461,9 +485,14 @@ st.markdown("""
             border: 1px solid #dcdfe6;
             border-radius: 5px;
             outline: none;
+            transition: all 0.3s ease-in-out;
         }
         .form-input:focus {
             border-color: #2f54eb;
+            box-shadow: 0 0 5px rgba(47, 85, 235, 0.5);
+        }
+        .form-input:hover {
+            border-color: #1d39c4;
         }
         .stButton>button {
             background-color: #2f54eb;
@@ -474,6 +503,7 @@ st.markdown("""
             font-size: 18px;
             width: 100%;
             cursor: pointer;
+            transition: background-color 0.3s ease;
         }
         .stButton>button:hover {
             background-color: #1d39c4;
@@ -485,6 +515,12 @@ st.markdown("""
             border-radius: 5px;
             margin-top: 10px;
             font-size: 14px;
+            animation: bounce 1s ease-in-out;
+        }
+        @keyframes bounce {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0); }
         }
         .success-message {
             background-color: #52c41a;
@@ -493,9 +529,7 @@ st.markdown("""
             border-radius: 5px;
             margin-top: 10px;
             font-size: 14px;
-        }
-        .login-logo {
-            margin-bottom: 20px;
+            animation: fadeIn 1.5s ease-in;
         }
         .login-footer {
             font-size: 14px;
@@ -505,6 +539,10 @@ st.markdown("""
         .login-footer a {
             color: #2f54eb;
             text-decoration: none;
+            transition: color 0.3s ease;
+        }
+        .login-footer a:hover {
+            color: #1d39c4;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -521,19 +559,17 @@ else:
     def login_screen():
         st.markdown('<div class="login-container">', unsafe_allow_html=True)
         
-        # Logo section (replace with your logo)
-        #st.image("bits_logo.jpg", width=100, use_column_width=True)
-        
-        st.markdown('<h2 class="login-title">Welcome to BITS Buddy</h2>', unsafe_allow_html=True)
-        st.markdown('<p class="login-subtitle">Please login or sign up to continue</p>', unsafe_allow_html=True)
+        # Title and Subtitle
+        st.markdown('<h2 class="login-title">Welcome to BITS Buddy <span>🤖</span></h2>', unsafe_allow_html=True)
+        st.markdown('<p class="login-subtitle">Please login or sign up to continue 🚀</p>', unsafe_allow_html=True)
         
         with st.form(key='login_form', clear_on_submit=True):
-            # Removed class_="form-input", styling now handled through CSS
-            name = st.text_input("Full Name", placeholder="Enter your full name")
-            email = st.text_input("Email", placeholder="Enter your email")
-            password = st.text_input("Password", type="password", placeholder="Enter your password")
+            # Input fields with emojis
+            name = st.text_input("Full Name 📝", placeholder="Enter your full name")
+            email = st.text_input("Email 📧", placeholder="Enter your email")
+            password = st.text_input("Password 🔑", type="password", placeholder="Enter your password")
             
-            submit_button = st.form_submit_button("Login / Sign Up")
+            submit_button = st.form_submit_button("Login / Sign Up 👏")
             
             if submit_button:
                 if not name or not email or not password:
@@ -543,12 +579,12 @@ else:
                     email_norm = email.strip().lower()
                     try:
                         user = auth.get_user_by_email(email_norm)
-                        st.success(f"Welcome back, {user.display_name or name}!")
+                        st.success(f"Welcome back, {user.display_name or name}! 🎉")
                         st.session_state.uid = user.uid
                         st.session_state.chat_history = load_user_chat_history(user.uid)
                     except auth.UserNotFoundError:
                         user = auth.create_user(email=email_norm, password=password, display_name=name)
-                        st.success(f"Account created! Welcome, {name}!")
+                        st.success(f"Account created! Welcome, {name}! 🌟")
                         st.session_state.uid = user.uid
                         st.session_state.chat_history = []
                     st.session_state["user_uid"] = user.uid
