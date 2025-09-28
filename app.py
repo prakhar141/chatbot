@@ -410,6 +410,74 @@ def build_clarification_prompt(last_answer: str, user_query: str, lang: str = "E
     ]
 
 # ----------------- Session init -----------------
+import streamlit as st
+import firebase_admin
+from firebase_admin import credentials, auth
+
+# Initialize Firebase (make sure to replace this with your Firebase credentials)
+if not firebase_admin._apps:
+    try:
+        firebase_config = dict(st.secrets["firebase"])
+        firebase_config["private_key"] = firebase_config["private_key"].replace("\\n", "\n")
+        database_url = st.secrets["firebase"]["database_url"]
+        cred = credentials.Certificate(firebase_config)
+        firebase_admin.initialize_app(cred, {"databaseURL": database_url})
+    except Exception as e:
+        st.error(f"Firebase initialization failed: {e}")
+        st.stop()
+else:
+    firebase_admin.get_app()
+
+# Custom styles for the login page
+st.markdown("""
+    <style>
+        .login-container {
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            background-color: #f0f5ff;
+            width: 400px;
+            margin: 0 auto;
+        }
+        .login-title {
+            text-align: center;
+            color: #2f54eb;
+            font-size: 36px;
+            font-weight: bold;
+        }
+        .login-form {
+            margin-top: 20px;
+        }
+        .stButton>button {
+            background-color: #2f54eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .stButton>button:hover {
+            background-color: #1d39c4;
+        }
+        .stError {
+            background-color: #ff4d4f;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .stSuccess {
+            background-color: #52c41a;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# Check if the user is authenticated
 if "authenticated" in st.session_state and st.session_state["authenticated"]:
     if "chat_history" not in st.session_state:
         uid = st.session_state.get("user_uid")
@@ -417,36 +485,44 @@ if "authenticated" in st.session_state and st.session_state["authenticated"]:
     if "just_streamed" not in st.session_state:
         st.session_state.just_streamed = False
 else:
-    # show login screen if not authenticated (define login_screen elsewhere or reuse your function)
+    # Show login screen if not authenticated
     def login_screen():
-        st.title("🔐 BITS Buddy Login")
-        st.markdown("Please login/Signup to continue")
-        name = st.text_input("Full Name")
-        email = st.text_input("Email")
-        password = st.text_input("Password", type="password")
-        if st.button("Login / Sign Up"):
-            if not name or not email or not password:
-                st.error("Please fill in all fields.")
-                return False
-            try:
-                email_norm = email.strip().lower()
+        st.markdown('<div class="login-container">', unsafe_allow_html=True)
+        st.markdown('<h2 class="login-title">Welcome to BITS Buddy</h2>', unsafe_allow_html=True)
+        
+        with st.form(key='login_form', clear_on_submit=True):
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                name = st.text_input("Full Name", placeholder="Enter your full name")
+                email = st.text_input("Email", placeholder="Enter your email")
+                password = st.text_input("Password", type="password", placeholder="Enter your password")
+            
+            submit_button = st.form_submit_button("Login / Sign Up")
+            
+            if submit_button:
+                if not name or not email or not password:
+                    st.error("⚠️ Please fill in all fields.")
+                    return False
                 try:
-                    user = auth.get_user_by_email(email_norm)
-                    st.success(f"Welcome back, {user.display_name or name}!")
-                    st.session_state.uid = user.uid
-                    st.session_state.chat_history = load_user_chat_history(user.uid)
-                except auth.UserNotFoundError:
-                    user = auth.create_user(email=email_norm, password=password, display_name=name)
-                    st.success(f"Account created! Welcome, {name}!")
-                    st.session_state.uid = user.uid
-                    st.session_state.chat_history = []
-                st.session_state["user_uid"] = user.uid
-                st.session_state["user_name"] = name
-                st.session_state["authenticated"] = True
-                st.rerun()
-            except Exception as e:
-                st.error(f"Authentication failed: {e}")
-                return False
+                    email_norm = email.strip().lower()
+                    try:
+                        user = auth.get_user_by_email(email_norm)
+                        st.success(f"Welcome back, {user.display_name or name}!")
+                        st.session_state.uid = user.uid
+                        st.session_state.chat_history = load_user_chat_history(user.uid)
+                    except auth.UserNotFoundError:
+                        user = auth.create_user(email=email_norm, password=password, display_name=name)
+                        st.success(f"Account created! Welcome, {name}!")
+                        st.session_state.uid = user.uid
+                        st.session_state.chat_history = []
+                    st.session_state["user_uid"] = user.uid
+                    st.session_state["user_name"] = name
+                    st.session_state["authenticated"] = True
+                    st.experimental_rerun()
+                except Exception as e:
+                    st.error(f"⚠️ Authentication failed: {e}")
+                    return False
+        st.markdown('</div>', unsafe_allow_html=True)
 
     login_screen()
     st.stop()
