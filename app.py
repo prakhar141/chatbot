@@ -410,7 +410,6 @@ def build_clarification_prompt(last_answer: str, user_query: str, lang: str = "E
     ]
 
 # ----------------- Session init -----------------
-# Initialize Firebase (make sure to replace this with your Firebase credentials)
 if not firebase_admin._apps:
     try:
         firebase_config = dict(st.secrets["firebase"])
@@ -531,19 +530,6 @@ st.markdown("""
             font-size: 14px;
             animation: fadeIn 1.5s ease-in;
         }
-        .login-footer {
-            font-size: 14px;
-            color: #888;
-            margin-top: 20px;
-        }
-        .login-footer a {
-            color: #2f54eb;
-            text-decoration: none;
-            transition: color 0.3s ease;
-        }
-        .login-footer a:hover {
-            color: #1d39c4;
-        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -595,9 +581,6 @@ else:
                     st.error(f"⚠️ Authentication failed: {e}")
                     return False
 
-        st.markdown('<div class="login-footer">', unsafe_allow_html=True)
-        st.markdown('<p>Already have an account? <a href="#">Login here</a></p>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     login_screen()
