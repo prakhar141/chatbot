@@ -410,6 +410,7 @@ def build_clarification_prompt(last_answer: str, user_query: str, lang: str = "E
     ]
 
 # ----------------- Session init -----------------
+# Initialize Firebase (make sure to replace this with your Firebase credentials)
 if not firebase_admin._apps:
     try:
         firebase_config = dict(st.secrets["firebase"])
@@ -527,9 +528,10 @@ else:
         st.markdown('<p class="login-subtitle">Please login or sign up to continue</p>', unsafe_allow_html=True)
         
         with st.form(key='login_form', clear_on_submit=True):
-            name = st.text_input("Full Name", placeholder="Enter your full name", key="name", class_="form-input")
-            email = st.text_input("Email", placeholder="Enter your email", key="email", class_="form-input")
-            password = st.text_input("Password", type="password", placeholder="Enter your password", key="password", class_="form-input")
+            # Removed class_="form-input", styling now handled through CSS
+            name = st.text_input("Full Name", placeholder="Enter your full name")
+            email = st.text_input("Email", placeholder="Enter your email")
+            password = st.text_input("Password", type="password", placeholder="Enter your password")
             
             submit_button = st.form_submit_button("Login / Sign Up")
             
@@ -564,7 +566,6 @@ else:
 
     login_screen()
     st.stop()
-
 # ----------------- Main chat handler (auto pipeline selection) -----------------
 
 st.title(f"What's your agenda today? {st.session_state.get('user_name', 'User')} 👋")
