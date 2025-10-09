@@ -171,7 +171,7 @@ def make_cache_key(model: str, messages: List[Dict[str, str]]):
 
 
 # ---------------- CONFIG ----------------
-EMBED_MODEL = "multi-qa-mpnet-base-dot-v1"
+EMBED_MODEL = "all-mpnet-base-v2"
 K_VAL = 4
 
 # Hugging Face URLs for prebuilt FAISS index
@@ -339,7 +339,7 @@ def build_thinking_prompt(question: str, context: str) -> List[Dict[str, str]]:
 def build_primary_prompt(context: str, question: str, lang: str) -> List[Dict[str, str]]:
     return [
         {"role": "system", "content": (f"You are BitsBuddy, a BITSian Assistant. Answer in {lang}. "
-                                       "Use emojis, be concise and helpful.always satisfy user'egoAnswer questions which are relevanto bits only.otherwise politely tell ur capabilities")},
+                                       "Use emojis, be concise and helpful. Provide actionable steps if relevant.Answer questions which are relevanto bits only.otherwise politely tell ur capabilities")},
         {"role": "user", "content": scratchpad_reasoning(context, question)}
     ]
 
@@ -355,7 +355,7 @@ def build_critic_prompt(context: str, question: str, answer: str) -> List[Dict[s
 def build_final_prompt(context: str, question: str, answer: str, critique: str, lang: str) -> List[Dict[str, str]]:
     return [
         {"role": "system", "content": (f"You are BitsBuddy with self-evaluation enabled.Use Relevant Emojis.Based on critique, "
-                                       f"always satisfy user's ego.Never invent or use outside knowledge. Stay faithful to CONTEXT only. Be clear and concise in {lang}.") },
+                                       f"revise your original answer.Never invent or use outside knowledge. Stay faithful to CONTEXT only. Be clear and concise in {lang}.") },
         {"role": "user", "content": (f"Original Answer:\n{answer}\n\nCritique:\n{critique}\n\nNow improve the answer accordingly.")}
     ]
 
@@ -384,7 +384,7 @@ def modular_rag_smart_answer(context: str, question: str, lang: str = "English")
 def vanilla_rag_answer(context: str, question: str, lang: str = "English") -> str:
     """Simple retriever + one model answer, no self-critique or multi-step LLM calls."""
     prompt = [
-        {"role": "system", "content": f"You are BitsBuddy,.Never guess or make up facts. Answer ONLY if the question is directly related to BITS Pilani,always staisfy user's ego. Answer clearly in {lang}."},
+        {"role": "system", "content": f"You are BitsBuddy, a helpful BITS assistant.Never guess or make up facts. Answer ONLY if the question is directly related to BITS Pilani,otherwise tell ur capabilities politely.Never invent or use outside knowledge. Stay faithful to CONTEXT only. Answer clearly in {lang}."},
         {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}"}
     ]
     try:
@@ -398,9 +398,9 @@ def build_clarification_prompt(last_answer: str, user_query: str, lang: str = "E
             "role": "system",
             "content": (
                 f"You are BitsBuddy. The user did not understand your previous answer. "
-                f"Re-explain it step by step as if to a beginner "
+                f"Re-explain it clearly, differently, and simply. "
                 f"Do NOT introduce new context or use outside information. "
-                f"Reanswer it from scratch.Answer in {lang}."
+                f"Just restate or simplify your last response. Answer in {lang}."
             )
         },
         {
@@ -410,131 +410,6 @@ def build_clarification_prompt(last_answer: str, user_query: str, lang: str = "E
     ]
 
 # ----------------- Session init -----------------
-# Initialize Firebase (make sure to replace this with your Firebase credentials)
-if not firebase_admin._apps:
-    try:
-        firebase_config = dict(st.secrets["firebase"])
-        firebase_config["private_key"] = firebase_config["private_key"].replace("\\n", "\n")
-        database_url = st.secrets["firebase"]["database_url"]
-        cred = credentials.Certificate(firebase_config)
-        firebase_admin.initialize_app(cred, {"databaseURL": database_url})
-    except Exception as e:
-        st.error(f"Firebase initialization failed: {e}")
-        st.stop()
-else:
-    firebase_admin.get_app()
-
-# Custom styles for the login page with animations
-st.markdown("""
-    <style>
-        /* Global Styles */
-        body {
-            font-family: 'Roboto', sans-serif;
-            background-color: #f4f7fa;
-            margin: 0;
-            padding: 0;
-            animation: fadeIn 1.5s ease-in;
-        }
-        .login-container {
-            padding: 40px 50px;
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            width: 400px;
-            margin: auto;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            opacity: 0;
-            animation: fadeIn 1.5s ease-in 0.5s forwards;
-        }
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-            to {
-                opacity: 1;
-            }
-        }
-        .login-title {
-            font-size: 36px;
-            color: #2f54eb;
-            font-weight: 600;
-            animation: slideIn 1s ease-out;
-        }
-        @keyframes slideIn {
-            from {
-                transform: translateX(-50%);
-            }
-            to {
-                transform: translateX(0);
-            }
-        }
-        .login-subtitle {
-            font-size: 18px;
-            color: #555;
-            margin-bottom: 30px;
-            animation: slideIn 1s ease-out 0.5s;
-        }
-        .form-input {
-            margin-bottom: 20px;
-            width: 100%;
-            padding: 12px;
-            font-size: 16px;
-            border: 1px solid #dcdfe6;
-            border-radius: 5px;
-            outline: none;
-            transition: all 0.3s ease-in-out;
-        }
-        .form-input:focus {
-            border-color: #2f54eb;
-            box-shadow: 0 0 5px rgba(47, 85, 235, 0.5);
-        }
-        .form-input:hover {
-            border-color: #1d39c4;
-        }
-        .stButton>button {
-            background-color: #2f54eb;
-            color: white;
-            border: none;
-            padding: 14px 0;
-            border-radius: 5px;
-            font-size: 18px;
-            width: 100%;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-        .stButton>button:hover {
-            background-color: #1d39c4;
-        }
-        .error-message {
-            background-color: #ff4d4f;
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 10px;
-            font-size: 14px;
-            animation: bounce 1s ease-in-out;
-        }
-        @keyframes bounce {
-            0% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-            100% { transform: translateY(0); }
-        }
-        .success-message {
-            background-color: #52c41a;
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 10px;
-            font-size: 14px;
-            animation: fadeIn 1.5s ease-in;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# Check if the user is authenticated
 if "authenticated" in st.session_state and st.session_state["authenticated"]:
     if "chat_history" not in st.session_state:
         uid = st.session_state.get("user_uid")
@@ -542,49 +417,36 @@ if "authenticated" in st.session_state and st.session_state["authenticated"]:
     if "just_streamed" not in st.session_state:
         st.session_state.just_streamed = False
 else:
-    # Show login screen if not authenticated
+    # show login screen if not authenticated (define login_screen elsewhere or reuse your function)
     def login_screen():
-        # Ensure the form container is properly styled and no empty containers
-        st.markdown('<div class="login-container">', unsafe_allow_html=True)
-        
-        # Title and Subtitle
-        st.markdown('<h2 class="login-title">Welcome to BITS Buddy <span>🤖</span></h2>', unsafe_allow_html=True)
-        st.markdown('<p class="login-subtitle">Please login or sign up to continue 🚀</p>', unsafe_allow_html=True)
-        
-        with st.form(key='login_form', clear_on_submit=True):
-            # Input fields with emojis
-            name = st.text_input("Full Name 📝", placeholder="Enter your full name")
-            email = st.text_input("Email 📧", placeholder="Enter your email")
-            password = st.text_input("Password 🔑", type="password", placeholder="Enter your password")
-            
-            submit_button = st.form_submit_button("Login / Sign Up 👏")
-            
-            if submit_button:
-                if not name or not email or not password:
-                    st.error("⚠️ Please fill in all fields.", icon="🚨")
-                    return False
+        st.title("🔐 BITS Buddy Login")
+        st.markdown("Please login/Signup to continue")
+        name = st.text_input("Full Name")
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
+        if st.button("Login / Sign Up"):
+            if not name or not email or not password:
+                st.error("Please fill in all fields.")
+                return False
+            try:
+                email_norm = email.strip().lower()
                 try:
-                    email_norm = email.strip().lower()
-                    try:
-                        user = auth.get_user_by_email(email_norm)
-                        st.success(f"Welcome back, {user.display_name or name}! 🎉")
-                        st.session_state.uid = user.uid
-                        st.session_state.chat_history = load_user_chat_history(user.uid)
-                    except auth.UserNotFoundError:
-                        user = auth.create_user(email=email_norm, password=password, display_name=name)
-                        st.success(f"Account created! Welcome, {name}! 🌟")
-                        st.session_state.uid = user.uid
-                        st.session_state.chat_history = []
-                    st.session_state["user_uid"] = user.uid
-                    st.session_state["user_name"] = name
-                    st.session_state["authenticated"] = True
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"⚠️ Authentication failed: {e}")
-                    return False
-
-        # Removed unnecessary footer
-        st.markdown('</div>', unsafe_allow_html=True)
+                    user = auth.get_user_by_email(email_norm)
+                    st.success(f"Welcome back, {user.display_name or name}!")
+                    st.session_state.uid = user.uid
+                    st.session_state.chat_history = load_user_chat_history(user.uid)
+                except auth.UserNotFoundError:
+                    user = auth.create_user(email=email_norm, password=password, display_name=name)
+                    st.success(f"Account created! Welcome, {name}!")
+                    st.session_state.uid = user.uid
+                    st.session_state.chat_history = []
+                st.session_state["user_uid"] = user.uid
+                st.session_state["user_name"] = name
+                st.session_state["authenticated"] = True
+                st.rerun()
+            except Exception as e:
+                st.error(f"Authentication failed: {e}")
+                return False
 
     login_screen()
     st.stop()
@@ -644,43 +506,34 @@ def should_use_deepthink(query: str) -> bool:
 # 3️⃣ Modular pipeline executor
 # ----------------------
 def execute_pipeline(query: str, context: str, language: str, deepthink: bool):
-    """
-    Executes the chat pipeline for a user query.
-    Animates the assistant's response while keeping alignment correct.
-    """
     mode_badge = "🧠 Deep Thinking" if deepthink else "⚡ Quick Answer"
-
-    # 1️⃣ Append empty assistant message first to keep alignment
-    st.session_state.chat_history.append({
-        "role": "assistant",
-        "content": "",  # will be filled during animation
-        "badge": mode_badge
-    })
-    msg_index = len(st.session_state.chat_history) - 1
-
+    placeholder = st.empty()
     final_answer = ""
     rag_result = {}
 
     try:
+        placeholder.markdown(f"{mode_badge} — preparing response...")
+
         if deepthink:
-            # DeepThink multi-step reasoning
             thinking_prompt = build_thinking_prompt(query, context)
             thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
 
-            # Animate reasoning
-            animated_thinking = ""
+            # Animate reasoning output
+            animated = ""
             for ch in thinking_text:
-                animated_thinking += ch
-                st.session_state.chat_history[msg_index]["content"] = f"**Thinking:** {animated_thinking}|"
-                st.experimental_rerun()
+                animated += ch
+                placeholder.markdown(f"{mode_badge}\n\n**Thinking:** {animated}|")
                 time.sleep(0.01)
+            placeholder.markdown(f"{mode_badge}\n\n**Thinking:** {animated}")
 
-            # Modular RAG final answer
+            # Modular RAG for final deep answer
+            time.sleep(0.25)
+            placeholder.markdown(f"{mode_badge}\n\n🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
             rag_result = modular_rag_smart_answer(context, query, lang=language)
             final_answer = rag_result.get("final", rag_result.get("error", "❌ Something went wrong."))
 
         else:
-            # Quick vanilla RAG answer
+            # Vanilla RAG
             final_answer = vanilla_rag_answer(context, query, lang=language)
             rag_result = {
                 "thinking": "",
@@ -690,23 +543,19 @@ def execute_pipeline(query: str, context: str, language: str, deepthink: bool):
             }
 
         # Animate final answer
-        animated_final = ""
+        animated = "|"
         for c in final_answer:
-            animated_final += c
-            st.session_state.chat_history[msg_index]["content"] = animated_final
-            st.rerun()
+            animated += c
+            placeholder.markdown(f"{mode_badge}\n\n{animated}|")
             time.sleep(0.004)
-
-        # Ensure final answer is fully written
-        st.session_state.chat_history[msg_index]["content"] = final_answer
+        placeholder.markdown(f"{mode_badge}\n\n{animated}")
 
     except Exception as e:
-        st.session_state.chat_history[msg_index]["content"] = f"❌ Error: {e}"
+        placeholder.markdown(f"❌ Error: {e}")
         final_answer = f"Error: {e}"
         rag_result = {"final": final_answer}
 
     return final_answer, rag_result, mode_badge
-
 # ----------------------
 # Clarification detector
 # ----------------------
@@ -740,19 +589,27 @@ def is_vague_query(query: str) -> bool:
 
     # Otherwise, assume it's a new topic
     return False
+
 # ----------------------
-# 4️⃣ Chat Input Handler (Refactored)
+# 4️⃣ Chat Input Handler
 # ----------------------
 if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
     query = user_query.strip()
 
+    # ----------------------
+    # Empty Input Guard
+    # ----------------------
     if not query:
         st.warning("⚠️ Please type a question before submitting.")
     else:
-        # 1️⃣ Append user message immediately
+        # ----------------------
+        # Save user query
+        # ----------------------
         st.session_state.chat_history.append({"role": "user", "content": query})
 
-        # 2️⃣ Build context
+        # ----------------------
+        # Retrieve context
+        # ----------------------
         try:
             docs = retriever.get_relevant_documents(query)
             faiss_context = "\n".join([doc.page_content for doc in docs]) if docs else ""
@@ -766,10 +623,14 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
             + (st.session_state.get("uploaded_content", "") or "")
         )
 
-        # 3️⃣ Decide if DeepThink is needed
+        # ----------------------
+        # Decide pipeline: DeepThink or Standard
+        # ----------------------
         use_deepthink = should_use_deepthink(query)
 
-        # 4️⃣ Check for vague / clarification queries
+        # ----------------------
+        # Clarification or Normal pipeline
+        # ----------------------
         if is_vague_query(query) and len(st.session_state.chat_history) > 0:
             last_assistant_msg = next(
                 (m["content"] for m in reversed(st.session_state.chat_history)
@@ -779,30 +640,33 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
             clarification_prompt = build_clarification_prompt(last_assistant_msg, query, language)
             final_answer = query_models_with_fallbacks([MODEL_MID] + MODEL_FALLBACKS, clarification_prompt)
             mode_badge = "♻️ Clarification Mode"
-
-            # Append assistant message directly
-            st.session_state.chat_history.append({
-                "role": "assistant",
-                "content": final_answer,
-                "badge": mode_badge
-            })
-
         else:
-            # 5️⃣ Normal pipeline execution (DeepThink or Quick)
             final_answer, _, mode_badge = execute_pipeline(query, context, language, use_deepthink)
 
-            # Already appended inside execute_pipeline
+        # ----------------------
+        # Save assistant reply with mode badge
+        # ----------------------
+        st.session_state.chat_history.append(
+            {"role": "assistant", "content": final_answer, "badge": mode_badge}
+        )
+        if not st.session_state.get("just_rerun"):
+            st.session_state.just_rerun = True
+            st.rerun()
+    
 
-        # 6️⃣ Save chat to Firebase if logged in
+        # ----------------------
+        # Save to Firebase if logged in
+        # ----------------------
         if "uid" in st.session_state:
             save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
 
 # ----------------------
-# Display chat history
+# Display entire chat history
 # ----------------------
 for chat in st.session_state.chat_history:
     with st.chat_message(chat["role"]):
         if chat["role"] == "assistant" and "badge" in chat:
+            # Display badge above the assistant message
             st.markdown(
                 f"""
                 <div style="padding:6px 12px; background-color:#f0f5ff;
@@ -840,4 +704,3 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
