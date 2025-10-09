@@ -453,7 +453,7 @@ else:
 
 # ----------------- Main chat handler (auto pipeline selection) -----------------
 
-st.title(f"What's your agenda today? {st.session_state.get('user_name', 'User')} 👋")
+st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
 
 # ----------------------
 # 1️⃣ Load embedding model
@@ -649,10 +649,6 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
         st.session_state.chat_history.append(
             {"role": "assistant", "content": final_answer, "badge": mode_badge}
         )
-        if not st.session_state.get("just_rerun"):
-            st.session_state.just_rerun = True
-            st.rerun()
-    
 
         # ----------------------
         # Save to Firebase if logged in
