@@ -644,34 +644,43 @@ def should_use_deepthink(query: str) -> bool:
 # 3️⃣ Modular pipeline executor
 # ----------------------
 def execute_pipeline(query: str, context: str, language: str, deepthink: bool):
+    """
+    Executes the chat pipeline for a user query.
+    Animates the assistant's response while keeping alignment correct.
+    """
     mode_badge = "🧠 Deep Thinking" if deepthink else "⚡ Quick Answer"
-    placeholder = st.empty()
+
+    # 1️⃣ Append empty assistant message first to keep alignment
+    st.session_state.chat_history.append({
+        "role": "assistant",
+        "content": "",  # will be filled during animation
+        "badge": mode_badge
+    })
+    msg_index = len(st.session_state.chat_history) - 1
+
     final_answer = ""
     rag_result = {}
 
     try:
-        placeholder.markdown(f"{mode_badge} — preparing response...")
-
         if deepthink:
+            # DeepThink multi-step reasoning
             thinking_prompt = build_thinking_prompt(query, context)
             thinking_text = query_models_with_fallbacks([MODEL_CHEAP] + MODEL_FALLBACKS, thinking_prompt)
 
-            # Animate reasoning output
-            animated = ""
+            # Animate reasoning
+            animated_thinking = ""
             for ch in thinking_text:
-                animated += ch
-                placeholder.markdown(f"{mode_badge}\n\n**Thinking:** {animated}|")
+                animated_thinking += ch
+                st.session_state.chat_history[msg_index]["content"] = f"**Thinking:** {animated_thinking}|"
+                st.experimental_rerun()
                 time.sleep(0.01)
-            placeholder.markdown(f"{mode_badge}\n\n**Thinking:** {animated}")
 
-            # Modular RAG for final deep answer
-            time.sleep(0.25)
-            placeholder.markdown(f"{mode_badge}\n\n🔁 Reasoning...\n\n• ✏️ Drafting initial answer...")
+            # Modular RAG final answer
             rag_result = modular_rag_smart_answer(context, query, lang=language)
             final_answer = rag_result.get("final", rag_result.get("error", "❌ Something went wrong."))
 
         else:
-            # Vanilla RAG
+            # Quick vanilla RAG answer
             final_answer = vanilla_rag_answer(context, query, lang=language)
             rag_result = {
                 "thinking": "",
@@ -681,19 +690,23 @@ def execute_pipeline(query: str, context: str, language: str, deepthink: bool):
             }
 
         # Animate final answer
-        animated = "|"
+        animated_final = ""
         for c in final_answer:
-            animated += c
-            placeholder.markdown(f"{mode_badge}\n\n{animated}|")
+            animated_final += c
+            st.session_state.chat_history[msg_index]["content"] = animated_final
+            st.rerun()
             time.sleep(0.004)
-        placeholder.markdown(f"{mode_badge}\n\n{animated}")
+
+        # Ensure final answer is fully written
+        st.session_state.chat_history[msg_index]["content"] = final_answer
 
     except Exception as e:
-        placeholder.markdown(f"❌ Error: {e}")
+        st.session_state.chat_history[msg_index]["content"] = f"❌ Error: {e}"
         final_answer = f"Error: {e}"
         rag_result = {"final": final_answer}
 
     return final_answer, rag_result, mode_badge
+
 # ----------------------
 # Clarification detector
 # ----------------------
