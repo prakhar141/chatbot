@@ -649,7 +649,11 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
         st.session_state.chat_history.append(
             {"role": "assistant", "content": final_answer, "badge": mode_badge}
         )
+        if not st.session_state.get("just_rerun"):
+            st.session_state.just_rerun = True
+            st.rerun()
 
+        
         # ----------------------
         # Save to Firebase if logged in
         # ----------------------
