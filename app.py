@@ -740,9 +740,8 @@ def is_vague_query(query: str) -> bool:
 
     # Otherwise, assume it's a new topic
     return False
-
 # ----------------------
-# 4️⃣ Chat Input Handler
+# 4️⃣ Chat Input Handler (Refactored)
 # ----------------------
 if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
     query = user_query.strip()
@@ -750,8 +749,10 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
     if not query:
         st.warning("⚠️ Please type a question before submitting.")
     else:
+        # 1️⃣ Append user message immediately
         st.session_state.chat_history.append({"role": "user", "content": query})
 
+        # 2️⃣ Build context
         try:
             docs = retriever.get_relevant_documents(query)
             faiss_context = "\n".join([doc.page_content for doc in docs]) if docs else ""
@@ -765,8 +766,10 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
             + (st.session_state.get("uploaded_content", "") or "")
         )
 
+        # 3️⃣ Decide if DeepThink is needed
         use_deepthink = should_use_deepthink(query)
 
+        # 4️⃣ Check for vague / clarification queries
         if is_vague_query(query) and len(st.session_state.chat_history) > 0:
             last_assistant_msg = next(
                 (m["content"] for m in reversed(st.session_state.chat_history)
@@ -776,13 +779,21 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
             clarification_prompt = build_clarification_prompt(last_assistant_msg, query, language)
             final_answer = query_models_with_fallbacks([MODEL_MID] + MODEL_FALLBACKS, clarification_prompt)
             mode_badge = "♻️ Clarification Mode"
+
+            # Append assistant message directly
+            st.session_state.chat_history.append({
+                "role": "assistant",
+                "content": final_answer,
+                "badge": mode_badge
+            })
+
         else:
+            # 5️⃣ Normal pipeline execution (DeepThink or Quick)
             final_answer, _, mode_badge = execute_pipeline(query, context, language, use_deepthink)
 
-        st.session_state.chat_history.append(
-            {"role": "assistant", "content": final_answer, "badge": mode_badge}
-        )
+            # Already appended inside execute_pipeline
 
+        # 6️⃣ Save chat to Firebase if logged in
         if "uid" in st.session_state:
             save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
 
