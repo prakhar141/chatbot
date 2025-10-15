@@ -650,8 +650,9 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
 
 # ----------------------
 # Display chat history in chronological order
+# Use .get("ts", 0) to avoid KeyError
 # ----------------------
-for chat in sorted(st.session_state.chat_history, key=lambda m: m["ts"]):
+for chat in sorted(st.session_state.chat_history, key=lambda m: m.get("ts", 0)):
     with st.chat_message(chat["role"]):
         if chat["role"] == "assistant" and "badge" in chat:
             st.markdown(
@@ -665,7 +666,6 @@ for chat in sorted(st.session_state.chat_history, key=lambda m: m["ts"]):
                 unsafe_allow_html=True
             )
         st.markdown(chat["content"], unsafe_allow_html=True)
-
 # ----------------- Footer -----------------
 st.markdown(
     """
