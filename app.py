@@ -91,7 +91,7 @@ st.markdown("Ask me anything about BITS Pilani Admission")
 
 with st.sidebar:
     st.header("⚙️ Controls")
-    if st.button("🔁 Start New Chat"):
+    if st.button("🧭 Start New Chat"):
         uid = st.session_state.get("user_uid")
         if uid:
             try:
@@ -453,7 +453,7 @@ else:
 
 # ----------------- Main chat handler (auto pipeline selection) -----------------
 
-st.title(f"Welcome {st.session_state.get('user_name', 'User')} 👋")
+st.title(f"What's your agenda today? {st.session_state.get('user_name', 'User')} 👋")
 
 # ----------------------
 # 1️⃣ Load embedding model
