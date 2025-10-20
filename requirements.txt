@@ -1,22 +1,36 @@
+# Core AI / NLP
+torch
+transformers
+sentence-transformers
+protobuf
+numpy
+typing-extensions
+tqdm
+
+# LangChain ecosystem (modular structure)
+langchain>=0.2.14
+langchain-core>=0.2.35
+langchain-community>=0.2.12
+langchain-text-splitters>=0.2.0
+langchain-google-genai>=0.2.0
+
+# Vector stores
+faiss-cpu
+
+# PDF / Text processing
+PyMuPDF
 beautifulsoup4
 nltk
 spacy
+
+# App framework
 streamlit
-langchain
-langchain-community
-faiss-cpu
-sentence-transformers
-PyMuPDF
+
+# Google + Firebase integrations
 google-generativeai
-langchain-google-genai
+firebase-admin
+
+# Utilities
 python-dotenv
 requests
 pillow
-firebase-admin
-torch
-transformers
-tqdm
-protobuf
-numpy
-typing-extensions 
-langchain-text-splitters
