@@ -430,7 +430,7 @@ if st.session_state.get("do_logout", False):
         if _k in st.session_state:
             st.session_state.pop(_k, None)
     # Immediately rerun so login screen shows
-    st.experimental_rerun()
+    st.rerun()
 
 # Normal authenticated flow
 if st.session_state.get("authenticated", False):
