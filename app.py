@@ -408,16 +408,44 @@ def build_clarification_prompt(last_answer: str, user_query: str, lang: str = "E
             "content": f"Previous Answer:\n{last_answer}\n\nUser Query:\n{user_query}"
         }
     ]
-
 # ----------------- Session init -----------------
 if "authenticated" in st.session_state and st.session_state["authenticated"]:
+
+    # --- 🔒 Logout Section ---
+    st.sidebar.markdown("---")
+    st.sidebar.header("🔒 Account")
+
+    # Logout button
+    if st.sidebar.button("🚪 Logout"):
+        st.session_state["logout_requested"] = True
+
+    # Show confirmation if logout requested
+    if st.session_state.get("logout_requested"):
+        confirm = st.sidebar.radio(
+            "Are you sure you want to logout?", ("No", "Yes")
+        )
+        if confirm == "Yes":
+            # Clear session state related to authentication
+            keys_to_clear = ["authenticated", "user_uid", "user_name", "chat_history"]
+            for key in keys_to_clear:
+                if key in st.session_state:
+                    del st.session_state[key]
+
+            st.sidebar.success("✅ Logged out successfully!")
+            st.session_state["logout_requested"] = False
+            st.experimental_rerun()  # Refresh page to show login screen
+        else:
+            st.session_state["logout_requested"] = False
+
+    # Continue with chat initialization after login
     if "chat_history" not in st.session_state:
         uid = st.session_state.get("user_uid")
         st.session_state.chat_history = load_user_chat_history(uid) if uid else []
     if "just_streamed" not in st.session_state:
         st.session_state.just_streamed = False
+
 else:
-    # show login screen if not authenticated (define login_screen elsewhere or reuse your function)
+    # --- 🔐 Login Screen ---
     def login_screen():
         st.title("🔐 BITS Buddy Login")
         st.markdown("Please login/Signup to continue")
