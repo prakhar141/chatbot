@@ -409,9 +409,19 @@ def build_clarification_prompt(last_answer: str, user_query: str, lang: str = "E
         }
     ]
 # ----------------- Session init -----------------
+
+# ✅ Handle confirmed logout first
+if st.session_state.get("logout_confirmed", False):
+    keys_to_clear = ["authenticated", "user_uid", "user_name", "chat_history", "logout_confirmed"]
+    for key in keys_to_clear:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.success("✅ Logged out successfully!")
+    st.rerun()
+
+# ✅ User is already logged in
 if "authenticated" in st.session_state and st.session_state["authenticated"]:
 
-    # --- 🔒 Logout Section ---
     st.sidebar.markdown("---")
     st.sidebar.header("🔒 Account")
 
@@ -419,25 +429,17 @@ if "authenticated" in st.session_state and st.session_state["authenticated"]:
     if st.sidebar.button("🚪 Logout"):
         st.session_state["logout_requested"] = True
 
-    # Show confirmation if logout requested
+    # Ask for confirmation
     if st.session_state.get("logout_requested"):
-        confirm = st.sidebar.radio(
-            "Are you sure you want to logout?", ("No", "Yes")
-        )
+        confirm = st.sidebar.radio("Are you sure you want to logout?", ("No", "Yes"))
         if confirm == "Yes":
-            # Clear session state related to authentication
-            keys_to_clear = ["authenticated", "user_uid", "user_name", "chat_history"]
-            for key in keys_to_clear:
-                if key in st.session_state:
-                    del st.session_state[key]
-
-            st.sidebar.success("✅ Logged out successfully!")
+            st.session_state["logout_confirmed"] = True
             st.session_state["logout_requested"] = False
-            st.experimental_rerun()  # Refresh page to show login screen
-        else:
+            st.rerun()
+        elif confirm == "No":
             st.session_state["logout_requested"] = False
 
-    # Continue with chat initialization after login
+    # Initialize chat history if not yet loaded
     if "chat_history" not in st.session_state:
         uid = st.session_state.get("user_uid")
         st.session_state.chat_history = load_user_chat_history(uid) if uid else []
@@ -445,13 +447,15 @@ if "authenticated" in st.session_state and st.session_state["authenticated"]:
         st.session_state.just_streamed = False
 
 else:
-    # --- 🔐 Login Screen ---
+    # ----------------- Login Screen -----------------
     def login_screen():
         st.title("🔐 BITS Buddy Login")
         st.markdown("Please login/Signup to continue")
+
         name = st.text_input("Full Name")
         email = st.text_input("Email")
         password = st.text_input("Password", type="password")
+
         if st.button("Login / Sign Up"):
             if not name or not email or not password:
                 st.error("Please fill in all fields.")
