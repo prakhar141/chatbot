@@ -408,41 +408,71 @@ def build_clarification_prompt(last_answer: str, user_query: str, lang: str = "E
             "content": f"Previous Answer:\n{last_answer}\n\nUser Query:\n{user_query}"
         }
     ]
-# ----------------- Session init -----------------
-if "authenticated" in st.session_state and st.session_state["authenticated"]:
+# ----------------- Session init (robust logout) -----------------
 
-    # --- Logout Section ---
-    st.sidebar.markdown("---")
-    st.sidebar.header("🔒 Account")
+# Helper: keys we'll clear on logout (covers both 'uid' styles used in your code)
+_LOGOUT_KEYS = [
+    "authenticated", "user_uid", "uid", "user_name", "chat_history",
+    "just_streamed", "logout_requested", "do_logout", "logout_confirmed"
+]
 
-    # Step 1: Click Logout button
-    if st.sidebar.button("🚪 Logout"):
-        st.session_state["logout_requested"] = True
+# If a logout was confirmed on a previous run, perform the actual cleanup first
+if st.session_state.get("do_logout", False):
+    # Optional: delete from Firebase permanently (uncomment if you want)
+    # try:
+    #     uid_to_delete = st.session_state.get("uid") or st.session_state.get("user_uid")
+    #     if uid_to_delete:
+    #         db.reference(f"user_chats/{uid_to_delete}").delete()
+    # except Exception as e:
+    #     st.warning(f"Failed to delete remote history: {e}")
 
-    # Step 2: Ask for confirmation
-    if st.session_state.get("logout_requested", False):
-        confirm = st.sidebar.radio("Are you sure you want to logout?", ("No", "Yes"))
-        if confirm == "Yes":
-            # Clear all relevant session data
-            for key in ["authenticated", "user_uid", "user_name", "chat_history", "logout_requested"]:
-                if key in st.session_state:
-                    del st.session_state[key]
-            st.sidebar.success("✅ Logged out successfully!")
-            st.rerun()  # Immediately refresh to show login screen
-        elif confirm == "No":
-            # Cancel logout
-            st.session_state["logout_requested"] = False
-            st.rerun()
+    for _k in _LOGOUT_KEYS:
+        if _k in st.session_state:
+            st.session_state.pop(_k, None)
+    # Immediately rerun so login screen shows
+    st.experimental_rerun()
 
-    # Continue with normal chat initialization after login
+# Normal authenticated flow
+if st.session_state.get("authenticated", False):
+
+    # Put logout controls into sidebar
+    with st.sidebar:
+        st.markdown("---")
+        st.header("🔒 Account")
+
+        # Step 1: initial Logout button
+        if st.button("🚪 Logout"):
+            st.session_state["logout_requested"] = True
+            st.experimental_rerun()  # show confirmation buttons immediately
+
+        # Step 2: show explicit Confirm / Cancel buttons when requested
+        if st.session_state.get("logout_requested", False):
+            st.warning("Are you sure you want to log out?")
+
+            col_yes, col_no = st.columns([1, 1])
+            with col_yes:
+                if st.button("Yes — Log me out"):
+                    # mark for logout and rerun so cleanup happens at top of file
+                    st.session_state["do_logout"] = True
+                    # remove the request flag to avoid loops
+                    st.session_state.pop("logout_requested", None)
+                    st.experimental_rerun()
+
+            with col_no:
+                if st.button("No — Keep me signed in"):
+                    # cancel the logout flow and rerun to clear confirmation UI
+                    st.session_state.pop("logout_requested", None)
+                    st.experimental_rerun()
+
+    # Continue loading chat history / session initialization
     if "chat_history" not in st.session_state:
-        uid = st.session_state.get("user_uid")
+        uid = st.session_state.get("user_uid") or st.session_state.get("uid")
         st.session_state.chat_history = load_user_chat_history(uid) if uid else []
     if "just_streamed" not in st.session_state:
         st.session_state.just_streamed = False
 
 else:
-    # --- Login Screen ---
+    # ----------------- Login Screen -----------------
     def login_screen():
         st.title("🔐 BITS Buddy Login")
         st.markdown("Please login/Signup to continue")
@@ -465,10 +495,11 @@ else:
                     st.success(f"Account created! Welcome, {name}!")
                     st.session_state.uid = user.uid
                     st.session_state.chat_history = []
-                st.session_state["user_uid"] = user.uid
+                # keep both keys to stay compatible with other code paths
+                st.session_state["user_uid"] = st.session_state.get("uid")
                 st.session_state["user_name"] = name
                 st.session_state["authenticated"] = True
-                st.rerun()
+                st.experimental_rerun()
             except Exception as e:
                 st.error(f"Authentication failed: {e}")
                 return False
