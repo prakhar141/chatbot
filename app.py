@@ -443,7 +443,7 @@ if st.session_state.get("authenticated", False):
         # Step 1: initial Logout button
         if st.button("🚪 Logout"):
             st.session_state["logout_requested"] = True
-            st.experimental_rerun()  # show confirmation buttons immediately
+            st.rerun()  # show confirmation buttons immediately
 
         # Step 2: show explicit Confirm / Cancel buttons when requested
         if st.session_state.get("logout_requested", False):
