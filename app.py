@@ -456,13 +456,13 @@ if st.session_state.get("authenticated", False):
                     st.session_state["do_logout"] = True
                     # remove the request flag to avoid loops
                     st.session_state.pop("logout_requested", None)
-                    st.experimental_rerun()
+                    st.rerun()
 
             with col_no:
                 if st.button("No — Keep me signed in"):
                     # cancel the logout flow and rerun to clear confirmation UI
                     st.session_state.pop("logout_requested", None)
-                    st.experimental_rerun()
+                    st.rerun()
 
     # Continue loading chat history / session initialization
     if "chat_history" not in st.session_state:
@@ -499,7 +499,7 @@ else:
                 st.session_state["user_uid"] = st.session_state.get("uid")
                 st.session_state["user_name"] = name
                 st.session_state["authenticated"] = True
-                st.experimental_rerun()
+                st.rerun()
             except Exception as e:
                 st.error(f"Authentication failed: {e}")
                 return False
