@@ -558,6 +558,54 @@ def should_use_deepthink(query: str) -> bool:
     query_embedding = embed_model.encode(q, convert_to_tensor=True)
     score = util.cos_sim(query_embedding, deep_ref_embeddings).max().item()
     return score > 0.6
+def is_query_relevant_to_context(query: str, retriever, threshold_base: float = 0.35) -> bool:
+    """
+    Ultra-robust semantic relevance filter for domain gating.
+    Determines if a query is meaningfully related to the BITS Admission context.
+    Uses both maximum similarity and dispersion of top FAISS results.
+    """
+
+    try:
+        # Fetch top results from vector store
+        docs = retriever.get_relevant_documents(query)
+        if not docs:
+            return False
+
+        # Encode query + top documents
+        query_emb = embed_model.encode(query, convert_to_tensor=True)
+        doc_texts = [d.page_content for d in docs[:5]]
+        doc_embs = embed_model.encode(doc_texts, convert_to_tensor=True)
+        sim_scores = util.cos_sim(query_emb, doc_embs).cpu().numpy()[0]
+
+        max_score = float(max(sim_scores))
+        mean_score = float(sum(sim_scores) / len(sim_scores))
+        score_std = float((sum((x - mean_score) ** 2 for x in sim_scores) / len(sim_scores)) ** 0.5)
+
+        # Dynamic threshold tuning:
+        # - higher threshold for very short / vague queries
+        # - slightly lower for longer, detailed ones
+        q_len = len(query.split())
+        dyn_threshold = threshold_base + (0.05 if q_len < 5 else 0.0) - (0.03 if q_len > 15 else 0.0)
+        dyn_threshold = max(0.3, min(0.5, dyn_threshold))
+
+        # Decision logic:
+        # 1️⃣ must have strong match
+        # 2️⃣ mean must be reasonably high (indicating multiple relevant docs)
+        # 3️⃣ low dispersion → consistency among top docs
+        if (
+            max_score >= dyn_threshold
+            and mean_score >= dyn_threshold * 0.85
+            and score_std < 0.15
+        ):
+            return True
+        else:
+            return False
+
+    except Exception as e:
+        st.warning(f"⚠️ Semantic relevance check failed: {e}")
+        # Fail-open to avoid blocking all queries, but can be False for stricter behavior
+        return True
+
 # ----------------------
 # 3️⃣ Modular pipeline executor
 # ----------------------
@@ -679,18 +727,26 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
         # Decide pipeline
         use_deepthink = should_use_deepthink(query)
 
-        # Clarification or normal pipeline
-        if is_vague_query(query) and len(st.session_state.chat_history) > 0:
-            last_assistant_msg = next(
-                (m["content"] for m in reversed(st.session_state.chat_history)
-                 if m["role"] == "assistant"),
-                ""
+        # 🧠 Step 1: Semantic relevance filter
+        if not is_query_relevant_to_context(query, retriever):
+            final_answer = (
+                "⚠️ I can only answer questions related to **BITS Pilani Admissions**. "
+                "Please ask something within that domain. 😊"
             )
-            clarification_prompt = build_clarification_prompt(last_assistant_msg, query, language)
-            final_answer = query_models_with_fallbacks([MODEL_MID] + MODEL_FALLBACKS, clarification_prompt)
-            mode_badge = "♻️ Clarification Mode"
+            mode_badge = "🚫 Out-of-Domain Filter"
         else:
-            final_answer, _, mode_badge = execute_pipeline(query, context, language, use_deepthink)
+            # Clarification or normal pipeline
+            if is_vague_query(query) and len(st.session_state.chat_history) > 0:
+                last_assistant_msg = next(
+                    (m["content"] for m in reversed(st.session_state.chat_history)
+                     if m["role"] == "assistant"),
+                    ""
+                )
+                clarification_prompt = build_clarification_prompt(last_assistant_msg, query, language)
+                final_answer = query_models_with_fallbacks([MODEL_MID] + MODEL_FALLBACKS, clarification_prompt)
+                mode_badge = "♻️ Clarification Mode"
+            else:
+                final_answer, _, mode_badge = execute_pipeline(query, context, language, use_deepthink)
 
         # Save assistant reply with timestamp
         st.session_state.chat_history.append({
