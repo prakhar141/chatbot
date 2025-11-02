@@ -558,20 +558,20 @@ def should_use_deepthink(query: str) -> bool:
     query_embedding = embed_model.encode(q, convert_to_tensor=True)
     score = util.cos_sim(query_embedding, deep_ref_embeddings).max().item()
     return score > 0.6
-def is_query_relevant_to_context(query: str, retriever, threshold_base: float = 0.35) -> bool:
+def is_query_relevant_to_context(query: str, retriever, threshold_base: float = 0.45) -> bool:
     """
-    Ultra-robust semantic relevance filter for domain gating.
-    Determines if a query is meaningfully related to the BITS Admission context.
-    Uses both maximum similarity and dispersion of top FAISS results.
+    🚨 Ultra-strict semantic relevance filter for domain control.
+    Ensures the query is genuinely related to BITS Pilani Admissions.
+    Combines semantic similarity, dispersion check, and adaptive thresholding.
     """
 
     try:
-        # Fetch top results from vector store
+        # Fetch top results from FAISS / retriever
         docs = retriever.get_relevant_documents(query)
         if not docs:
             return False
 
-        # Encode query + top documents
+        # Encode query and top document embeddings
         query_emb = embed_model.encode(query, convert_to_tensor=True)
         doc_texts = [d.page_content for d in docs[:5]]
         doc_embs = embed_model.encode(doc_texts, convert_to_tensor=True)
@@ -579,32 +579,32 @@ def is_query_relevant_to_context(query: str, retriever, threshold_base: float = 
 
         max_score = float(max(sim_scores))
         mean_score = float(sum(sim_scores) / len(sim_scores))
-        score_std = float((sum((x - mean_score) ** 2 for x in sim_scores) / len(sim_scores)) ** 0.5)
+        score_std = float(
+            (sum((x - mean_score) ** 2 for x in sim_scores) / len(sim_scores)) ** 0.5
+        )
 
-        # Dynamic threshold tuning:
-        # - higher threshold for very short / vague queries
-        # - slightly lower for longer, detailed ones
+        # 🔧 Dynamic threshold tuning
         q_len = len(query.split())
-        dyn_threshold = threshold_base + (0.05 if q_len < 5 else 0.0) - (0.03 if q_len > 15 else 0.0)
-        dyn_threshold = max(0.3, min(0.5, dyn_threshold))
+        dyn_threshold = threshold_base + (0.08 if q_len < 5 else 0.0) - (0.03 if q_len > 15 else 0.0)
+        dyn_threshold = max(0.4, min(0.55, dyn_threshold))  # tightened range
 
-        # Decision logic:
-        # 1️⃣ must have strong match
-        # 2️⃣ mean must be reasonably high (indicating multiple relevant docs)
-        # 3️⃣ low dispersion → consistency among top docs
+        # 🧠 Strict decision logic:
+        # - Must have strong match (max_score)
+        # - Multiple docs agree (mean_score)
+        # - Consistency across docs (low std)
         if (
             max_score >= dyn_threshold
-            and mean_score >= dyn_threshold * 0.85
-            and score_std < 0.15
+            and mean_score >= dyn_threshold * 0.9
+            and score_std < 0.12
         ):
             return True
         else:
             return False
 
     except Exception as e:
-        st.warning(f"⚠️ Semantic relevance check failed: {e}")
-        # Fail-open to avoid blocking all queries, but can be False for stricter behavior
-        return True
+        # 🚫 Fail-closed: block query if anything goes wrong
+        st.warning(f"⚠️ Relevance check error: {e}")
+        return False
 
 # ----------------------
 # 3️⃣ Modular pipeline executor
@@ -710,7 +710,7 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
             "ts": time.time()
         })
 
-        # Retrieve context
+        # Retrieve FAISS context safely
         try:
             docs = retriever.get_relevant_documents(query)
             faiss_context = "\n".join([doc.page_content for doc in docs]) if docs else ""
@@ -727,28 +727,54 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
         # Decide pipeline
         use_deepthink = should_use_deepthink(query)
 
-        # 🧠 Step 1: Semantic relevance filter
-        if not is_query_relevant_to_context(query, retriever):
-            final_answer = (
-                "⚠️ I can only answer questions related to **BITS Pilani Admissions**. "
-                "Please ask something within that domain. 😊"
-            )
-            mode_badge = "🚫 Out-of-Domain Filter"
-        else:
-            # Clarification or normal pipeline
-            if is_vague_query(query) and len(st.session_state.chat_history) > 0:
-                last_assistant_msg = next(
-                    (m["content"] for m in reversed(st.session_state.chat_history)
-                     if m["role"] == "assistant"),
-                    ""
-                )
-                clarification_prompt = build_clarification_prompt(last_assistant_msg, query, language)
-                final_answer = query_models_with_fallbacks([MODEL_MID] + MODEL_FALLBACKS, clarification_prompt)
-                mode_badge = "♻️ Clarification Mode"
-            else:
-                final_answer, _, mode_badge = execute_pipeline(query, context, language, use_deepthink)
+        # 🧠 Step 1: Ultra-strict domain relevance filter
+        try:
+            is_relevant = is_query_relevant_to_context(query, retriever, threshold_base=0.45)
 
-        # Save assistant reply with timestamp
+            # 🔒 Extra keyword fallback (defense against edge cases)
+            admission_keywords = [
+                "bitsat", "bits pilani", "bits", "admission", "cutoff",
+                "iteration", "merit", "eligibility", "fees", "counselling",
+                "scholarship", "branch", "placement", "campus", "application"
+            ]
+            keyword_match = any(k in query.lower() for k in admission_keywords)
+
+            # Block if both semantic and keyword checks fail
+            if not is_relevant and not keyword_match:
+                final_answer = (
+                    "⚠️ I can only answer questions related to **BITS Pilani Admissions**. "
+                    "Your question doesn’t match my admission data. 😊"
+                )
+                mode_badge = "🚫 Out-of-Domain Filter"
+
+            else:
+                # ✅ Proceed only for valid admission-related queries
+                if is_vague_query(query) and len(st.session_state.chat_history) > 0:
+                    last_assistant_msg = next(
+                        (m["content"] for m in reversed(st.session_state.chat_history)
+                         if m["role"] == "assistant"),
+                        ""
+                    )
+                    clarification_prompt = build_clarification_prompt(last_assistant_msg, query, language)
+                    final_answer = query_models_with_fallbacks(
+                        [MODEL_MID] + MODEL_FALLBACKS, clarification_prompt
+                    )
+                    mode_badge = "♻️ Clarification Mode"
+                else:
+                    final_answer, _, mode_badge = execute_pipeline(
+                        query, context, language, use_deepthink
+                    )
+
+        except Exception as e:
+            # Absolute fallback — block everything if relevance logic fails
+            st.warning(f"⚠️ Domain relevance check failed: {e}")
+            final_answer = (
+                "⚠️ I can only respond to questions about **BITS Pilani Admissions**. "
+                "Please stay within that domain. 😊"
+            )
+            mode_badge = "🚫 Safety Filter (Fail-Safe)"
+
+        # 🗂 Save assistant reply
         st.session_state.chat_history.append({
             "role": "assistant",
             "content": final_answer,
@@ -756,7 +782,7 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
             "ts": time.time()
         })
 
-        # Save to Firebase if logged in
+        # 🔐 Save to Firebase if logged in
         if "uid" in st.session_state:
             save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
 
