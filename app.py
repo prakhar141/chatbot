@@ -697,20 +697,25 @@ def is_vague_query(query: str) -> bool:
 # ----------------------
 # 4️⃣ Chat Input Handler
 # ----------------------
+# =========================================
+# 🧠 Streamlit Chat Section
+# =========================================
+
+# Display chat input box
 if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
     query = user_query.strip()
 
     if not query:
         st.warning("⚠️ Please type a question before submitting.")
     else:
-        # Save user query with timestamp
+        # 🗓 Save user query
         st.session_state.chat_history.append({
             "role": "user",
             "content": query,
             "ts": time.time()
         })
 
-        # Retrieve FAISS context safely
+        # 🧱 Retrieve FAISS context safely
         try:
             docs = retriever.get_relevant_documents(query)
             faiss_context = "\n".join([doc.page_content for doc in docs]) if docs else ""
@@ -724,14 +729,16 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
             + (st.session_state.get("uploaded_content", "") or "")
         )
 
-        # Decide pipeline
+        # 🧭 Decide pipeline (normal vs deepthink)
         use_deepthink = should_use_deepthink(query)
 
-        # 🧠 Step 1: Ultra-strict domain relevance filter
+        # =========================================
+        # 🔒 Ultra-Strict Domain Relevance Filter
+        # =========================================
         try:
             is_relevant = is_query_relevant_to_context(query, retriever, threshold_base=0.45)
 
-            # 🔒 Extra keyword fallback (defense against edge cases)
+            # 🔐 Keyword fallback (second layer of defense)
             admission_keywords = [
                 "bitsat", "bits pilani", "bits", "admission", "cutoff",
                 "iteration", "merit", "eligibility", "fees", "counselling",
@@ -739,7 +746,7 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
             ]
             keyword_match = any(k in query.lower() for k in admission_keywords)
 
-            # Block if both semantic and keyword checks fail
+            # 🚫 Block if neither semantic nor keyword match
             if not is_relevant and not keyword_match:
                 final_answer = (
                     "⚠️ I can only answer questions related to **BITS Pilani Admissions**. "
@@ -748,14 +755,16 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
                 mode_badge = "🚫 Out-of-Domain Filter"
 
             else:
-                # ✅ Proceed only for valid admission-related queries
+                # ✅ Only proceed for valid admission-related queries
                 if is_vague_query(query) and len(st.session_state.chat_history) > 0:
                     last_assistant_msg = next(
                         (m["content"] for m in reversed(st.session_state.chat_history)
                          if m["role"] == "assistant"),
                         ""
                     )
-                    clarification_prompt = build_clarification_prompt(last_assistant_msg, query, language)
+                    clarification_prompt = build_clarification_prompt(
+                        last_assistant_msg, query, language
+                    )
                     final_answer = query_models_with_fallbacks(
                         [MODEL_MID] + MODEL_FALLBACKS, clarification_prompt
                     )
@@ -766,7 +775,7 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
                     )
 
         except Exception as e:
-            # Absolute fallback — block everything if relevance logic fails
+            # 🧤 Fail-safe — block everything if filter fails
             st.warning(f"⚠️ Domain relevance check failed: {e}")
             final_answer = (
                 "⚠️ I can only respond to questions about **BITS Pilani Admissions**. "
@@ -774,7 +783,9 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
             )
             mode_badge = "🚫 Safety Filter (Fail-Safe)"
 
-        # 🗂 Save assistant reply
+        # =========================================
+        # 💬 Save and Display Assistant Reply
+        # =========================================
         st.session_state.chat_history.append({
             "role": "assistant",
             "content": final_answer,
@@ -782,7 +793,7 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
             "ts": time.time()
         })
 
-        # 🔐 Save to Firebase if logged in
+        # 🔐 Optional Firebase Sync
         if "uid" in st.session_state:
             save_user_chat_history(st.session_state.uid, st.session_state.chat_history)
 
