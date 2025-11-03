@@ -815,6 +815,19 @@ for chat in sorted(st.session_state.chat_history, key=lambda m: m.get("ts", 0)):
                 unsafe_allow_html=True
             )
         st.markdown(chat["content"], unsafe_allow_html=True)
+# ----------------- Disclaimer -----------------
+st.markdown(
+    """
+    <div style="background-color:#fff3cd; border-left:6px solid #ffecb5;
+                padding:10px; border-radius:6px; margin-top:25px; font-size:15px;">
+        ⚠️ <b>Disclaimer:</b> BITS Buddy might make occasional mistakes.
+        Please verify important admission details directly from the official
+        <a href="https://www.bitsadmission.com" target="_blank">BITS Admission Website</a>. 🎓
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 # ----------------- Footer -----------------
 st.markdown(
     """
