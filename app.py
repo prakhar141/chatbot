@@ -467,8 +467,7 @@ if st.session_state.get("authenticated", False):
 
         # Step 2: show explicit Confirm / Cancel buttons when requested
         if st.session_state.get("logout_requested", False):
-            st.warning("Almost all smart aspirants already know this — don’t log out now, or you’ll miss your exclusive BITS readiness score that could make or break your chances.")
-
+            st.warning("Are you sure you want to log out? ") 
             col_yes, col_no = st.columns([1, 1])
             with col_yes:
                 if st.button("Yes — Log me out"):
