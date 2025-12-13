@@ -567,7 +567,7 @@ def is_query_relevant_to_context(query: str, retriever, threshold_base: float = 
 
     try:
         # Fetch top results from FAISS / retriever
-        docs = retriever.get_relevant_documents(query)
+        docs = retriever.invoke(query)
         if not docs:
             return False
 
