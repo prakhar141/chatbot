@@ -227,7 +227,7 @@ from bs4 import BeautifulSoup
 # ---------------------- 0️⃣ Real-time BITSAdmission content ----------------------
 BITSADMISSION_URLS = [
     "https://www.bitsadmission.com/index.html",
-    "https://www.bitsadmission.com/FD/FD.html"
+    "https://www.bitsadmission.com/FD/FD.html","https://timesofindia.indiatimes.com/education/news/bitsat-2026-registration-to-begin-on-this-day-bits-pilani-announces-fresh-exam-schedule-details-here/articleshow/125927906.cms"
 ]
 
 def fetch_bitsadmission_content() -> str:
