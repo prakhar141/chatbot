@@ -215,7 +215,7 @@ def load_vector_db_from_hf():
         st.warning(f"Failed to load vector DB: {e}")
 
         class EmptyRetriever:
-            def get_relevant_documents(self, query):
+            def invoke(self, query):
                 return []
 
         return EmptyRetriever()
@@ -717,7 +717,7 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
 
         # 🧱 Retrieve FAISS context safely
         try:
-            docs = retriever.get_relevant_documents(query)
+            docs = retriever.invoke(query)
             faiss_context = "\n".join([doc.page_content for doc in docs]) if docs else ""
         except Exception as e:
             faiss_context = ""
