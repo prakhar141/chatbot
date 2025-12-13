@@ -229,6 +229,26 @@ BITSADMISSION_URLS = [
     "https://www.bitsadmission.com/index.html",
     "https://www.bitsadmission.com/FD/FD.html","https://timesofindia.indiatimes.com/education/news/bitsat-2026-registration-to-begin-on-this-day-bits-pilani-announces-fresh-exam-schedule-details-here/articleshow/125927906.cms"
 ]
+def retrieve_live_context(query: str, full_text: str, top_k: int = 4) -> str:
+    """
+    Retrieves only the most relevant chunks from live website content.
+    """
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,
+        chunk_overlap=100
+    )
+    chunks = splitter.split_text(full_text)
+
+    if not chunks:
+        return ""
+
+    query_emb = embed_model.encode(query, convert_to_tensor=True)
+    chunk_embs = embed_model.encode(chunks, convert_to_tensor=True)
+
+    scores = util.cos_sim(query_emb, chunk_embs)[0]
+    top_indices = scores.topk(top_k).indices.tolist()
+
+    return "\n".join(chunks[i] for i in top_indices)
 
 def fetch_bitsadmission_content() -> str:
     """Fetch and combine all relevant BITSAdmission pages in plain text."""
@@ -722,9 +742,10 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
         except Exception as e:
             faiss_context = ""
             st.warning(f"⚠️ Retriever failed: {e}")
+        live_context=retrieve_live_context(query,st.session_state.bitsadmission_content)
 
         context = (
-            st.session_state.bitsadmission_content + "\n\n"
+            live_context + "\n\n"
             + faiss_context + "\n\n"
             + (st.session_state.get("uploaded_content", "") or "")
         )
