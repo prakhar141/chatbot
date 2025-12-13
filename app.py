@@ -227,7 +227,10 @@ from bs4 import BeautifulSoup
 # ---------------------- 0️⃣ Real-time BITSAdmission content ----------------------
 BITSADMISSION_URLS = [
     "https://www.bitsadmission.com/index.html",
-    "https://www.bitsadmission.com/FD/FD.html","https://timesofindia.indiatimes.com/education/news/bitsat-2026-registration-to-begin-on-this-day-bits-pilani-announces-fresh-exam-schedule-details-here/articleshow/125927906.cms"
+    "https://www.bitsadmission.com/FD/FD.html","https://timesofindia.indiatimes.com/education/news/bitsat-2026-registration-to-begin-on-this-day-bits-pilani-announces-fresh-exam-schedule-details-here/articleshow/125927906.cms",
+    "https://admissions.bits-pilani.ac.in/FD/BITSAT_cutOffs.html?06012025","https://admissions.bits-pilani.ac.in/FD/BITSAT_cutOffs.html?FQwp43qOeKhayi8LEQVUtJn3QNZ0TciWLP4NKxNMfcgzQdzcqZCCLqDBZRDnjcsHWFGgSC&yr=2024-2025&eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4",
+    "https://admissions.bits-pilani.ac.in/FD/BITSAT_cutOffs.html?FQwp43qOeKhayi8LEQVUtJn3QNZ0TciWLP4NKxNMfcgzQdzcqZCCLqDBZRDnjcsHWFGgSC&yr=2023-2024&eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4",
+    "https://admissions.bits-pilani.ac.in/FD/BITSAT_cutOffs.html?FQwp43qOeKhayi8LEQVUtJn3QNZ0TciWLP4NKxNMfcgzQdzcqZCCLqDBZRDnjcsHWFGgSC&yr=2022-2023&eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4"
 ]
 def retrieve_live_context(query: str, full_text: str, top_k: int = 4) -> str:
     """
