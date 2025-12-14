@@ -29,7 +29,7 @@ MODEL_MID = os.getenv("MODEL_MID") or "openai/gpt-oss-20b:free"
 MODEL_HIGH = os.getenv("MODEL_HIGH") or "deepseek/deepseek-r1-0528:free"
 MODEL_FALLBACKS = [MODEL_MID, MODEL_CHEAP]
 
-EMBED_MODEL = os.getenv("EMBED_MODEL") or "multi-qa-mpnet-base-dot-v1"
+EMBED_MODEL = os.getenv("EMBED_MODEL") or "all-mpnet-base-v2"
 K_VAL = int(os.getenv("K_VAL") or 4)
 
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
@@ -87,7 +87,7 @@ with col1:
 with col2:
     st.markdown("<h1 style='margin-top: 10px;'>BITS Buddy</h1>", unsafe_allow_html=True)
 
-st.markdown("Ask me anything about BITS Pilani Admission")
+st.markdown("Have a question about BITS Pilani admissions? Ask anytime.")
 
 with st.sidebar:
     st.header("⚙️ Controls")
@@ -470,10 +470,10 @@ if st.session_state.get("authenticated", False):
 
         # Step 2: show explicit Confirm / Cancel buttons when requested
         if st.session_state.get("logout_requested", False):
-            st.warning("Are you sure you want to log out? ") 
+            st.warning("You’re about to log out — nothing will be lost. Continue?") 
             col_yes, col_no = st.columns([1, 1])
             with col_yes:
-                if st.button("Yes — Log me out"):
+                if st.button("Yes, sign me out"):
                     # mark for logout and rerun so cleanup happens at top of file
                     st.session_state["do_logout"] = True
                     # remove the request flag to avoid loops
@@ -497,7 +497,7 @@ else:
     # ----------------- Login Screen -----------------
     def login_screen():
         st.title("🔐 BITS Buddy Login")
-        st.markdown("Please login/Signup to continue")
+        st.markdown("To continue, please log in or sign up — it’s quick and secure.")
         name = st.text_input("Full Name")
         email = st.text_input("Email")
         password = st.text_input("Password", type="password")
@@ -531,12 +531,12 @@ else:
 
 # ----------------- Main chat handler (auto pipeline selection) -----------------
 
-st.title(f"What's your agenda today? {st.session_state.get('user_name', 'User')} 👋")
+st.title(f"Which part of BITS admissions shall we tackle first? {st.session_state.get('user_name', 'User')} 👋")
 
 # ----------------------
 # 1️⃣ Load embedding model
 # ----------------------
-embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+embed_model = SentenceTransformer("all-mpnet-base-v2")
 
 # Reference queries that always need deep reasoning
 deep_reasoning_refs = [
@@ -724,11 +724,11 @@ def is_vague_query(query: str) -> bool:
 # =========================================
 
 # Display chat input box
-if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
+if user_query := st.chat_input("💬 Curious about BITS Pilani admissions? Ask me anything!"):
     query = user_query.strip()
 
     if not query:
-        st.warning("⚠️ Please type a question before submitting.")
+        st.warning("⚠️ Oops! Looks like you forgot to type your question. What would you like to ask?")
     else:
         # 🗓 Save user query
         st.session_state.chat_history.append({
@@ -772,8 +772,8 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
             # 🚫 Block if neither semantic nor keyword match
             if not is_relevant and not keyword_match:
                 final_answer = (
-                    "⚠️ I can only answer questions related to **BITS Pilani Admissions**. "
-                    "Your question doesn’t match my admission data. 😊"
+                    "⚠️ Hmm… I specialize in BITS Pilani admissions. It looks like your question is outside my data. 😊 "
+                    "Could you try asking something about admissions?"
                 )
                 mode_badge = "🚫 Out-of-Domain Filter"
 
@@ -801,8 +801,8 @@ if user_query := st.chat_input("💬 Ask me about BITS Pilani Admission"):
             # 🧤 Fail-safe — block everything if filter fails
             st.warning(f"⚠️ Domain relevance check failed: {e}")
             final_answer = (
-                "⚠️ I can only respond to questions about **BITS Pilani Admissions**. "
-                "Please stay within that domain. 😊"
+                "⚠️ Hmm… I specialize in BITS Pilani admissions. It looks like your question is outside my data. 😊 "
+                "Could you try asking something about admissions?"
             )
             mode_badge = "🚫 Safety Filter (Fail-Safe)"
 
@@ -843,9 +843,9 @@ st.markdown(
     """
     <div style="background-color:#fff3cd; border-left:6px solid #ffecb5;
                 padding:10px; border-radius:6px; margin-top:25px; font-size:15px;">
-        ⚠️ <b>Disclaimer:</b> BITS Buddy might make occasional mistakes.
-        Please verify important admission details directly from the official
-        <a href="https://www.bitsadmission.com" target="_blank">BITS Admission Website</a>. 🎓
+        ⚠️ <b>Important:</b> BITS Buddy is designed to assist, not replace official sources.
+        For final and critical admission decisions, please confirm details on the
+        <a href="https://www.bitsadmission.com" target="_blank">official BITS Admission website</a>.
     </div>
     """,
     unsafe_allow_html=True,
