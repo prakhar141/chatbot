@@ -235,10 +235,46 @@ BITSADMISSION_URLS = [
     "https://cdn3.digialm.com/EForms/configuredHtml/1823/96992/Index.html?_gl=1*gscehk*_gcl_au*MTUwMDQ5NzU0Ni4xNzY1NjA4MjIy",
     "https://admissions.bits-pilani.ac.in/ISA/ISA.html"
 ]
+def extract_numeric_chunks(
+    text: str,
+    min_numbers: int = 2,
+    window: int = 600
+) -> List[str]:
+    """
+    Extracts text windows that contain multiple numeric values.
+    Useful for fee tables / form-based pages where embeddings fail.
+    """
+    numeric_chunks = []
+    lines = text.splitlines()
+
+    buffer = []
+    num_count = 0
+
+    for line in lines:
+        buffer.append(line)
+        num_count += len(re.findall(r"\d+", line))
+
+        if len("\n".join(buffer)) >= window:
+            if num_count >= min_numbers:
+                numeric_chunks.append("\n".join(buffer))
+            buffer = []
+            num_count = 0
+
+    # final remainder
+    if buffer and num_count >= min_numbers:
+        numeric_chunks.append("\n".join(buffer))
+
+    return numeric_chunks
 def retrieve_live_context(query: str, full_text: str, top_k: int = 4) -> str:
     """
-    Retrieves only the most relevant chunks from live website content.
+    Retrieves relevant chunks from live website content.
+    ENHANCED: also injects numeric-heavy chunks for factoid queries,
+    with prioritization for form-based (Digialm / configuredHtml) pages.
     """
+
+    # ----------------------------
+    # Existing semantic logic (UNCHANGED)
+    # ----------------------------
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=800,
         chunk_overlap=100
@@ -254,7 +290,40 @@ def retrieve_live_context(query: str, full_text: str, top_k: int = 4) -> str:
     scores = util.cos_sim(query_emb, chunk_embs)[0]
     top_indices = scores.topk(top_k).indices.tolist()
 
-    return "\n".join(chunks[i] for i in top_indices)
+    semantic_context = "\n".join(chunks[i] for i in top_indices)
+
+    # ----------------------------
+    # NEW: numeric fallback logic (ADDED, old behavior preserved)
+    # ----------------------------
+    FACTOID_KEYWORDS = [
+        "fee", "fees", "application fee",
+        "exam fee", "registration fee",
+        "amount", "payment"
+    ]
+
+    numeric_context = ""
+
+    if any(k in query.lower() for k in FACTOID_KEYWORDS):
+        numeric_chunks = extract_numeric_chunks(full_text)
+
+        # Detect form-based Digialm pages
+        is_form_page = (
+            "configuredhtml" in full_text.lower()
+            or "digialm" in full_text.lower()
+        )
+
+        # Preserve old behavior, enhance when form page detected
+        if is_form_page:
+            numeric_context = "\n\n".join(numeric_chunks[:3])
+        else:
+            numeric_context = "\n\n".join(numeric_chunks[:2])
+
+    # ----------------------------
+    # Merge contexts (UNCHANGED)
+    # ----------------------------
+    return "\n\n".join(
+        part for part in [numeric_context, semantic_context] if part
+    )
 
 def fetch_bitsadmission_content() -> str:
     """Fetch and combine all relevant BITSAdmission pages in plain text."""
