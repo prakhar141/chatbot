@@ -230,7 +230,10 @@ BITSADMISSION_URLS = [
     "https://www.bitsadmission.com/FD/FD.html","https://timesofindia.indiatimes.com/education/news/bitsat-2026-registration-to-begin-on-this-day-bits-pilani-announces-fresh-exam-schedule-details-here/articleshow/125927906.cms",
     "https://admissions.bits-pilani.ac.in/FD/BITSAT_cutOffs.html?06012025","https://admissions.bits-pilani.ac.in/FD/BITSAT_cutOffs.html?FQwp43qOeKhayi8LEQVUtJn3QNZ0TciWLP4NKxNMfcgzQdzcqZCCLqDBZRDnjcsHWFGgSC&yr=2024-2025&eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4",
     "https://admissions.bits-pilani.ac.in/FD/BITSAT_cutOffs.html?FQwp43qOeKhayi8LEQVUtJn3QNZ0TciWLP4NKxNMfcgzQdzcqZCCLqDBZRDnjcsHWFGgSC&yr=2023-2024&eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4",
-    "https://admissions.bits-pilani.ac.in/FD/BITSAT_cutOffs.html?FQwp43qOeKhayi8LEQVUtJn3QNZ0TciWLP4NKxNMfcgzQdzcqZCCLqDBZRDnjcsHWFGgSC&yr=2022-2023&eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4"
+    "https://admissions.bits-pilani.ac.in/FD/BITSAT_cutOffs.html?FQwp43qOeKhayi8LEQVUtJn3QNZ0TciWLP4NKxNMfcgzQdzcqZCCLqDBZRDnjcsHWFGgSC&yr=2022-2023&eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4","https://cdn3.digialm.com/EForms/configuredHtml/1823/94103/Index.html?_gl=1*1lsubut*_gcl_au*MTUwMDQ5NzU0Ni4xNzY1NjA4MjIy","https://admissions.bits-pilani.ac.in/Privacy.html?_gl=1*bcbvph*_gcl_au*MTUwMDQ5NzU0Ni4xNzY1NjA4MjIy*_ga*NzI3OTE4MjcyLjE3NjU5NDcyOTY.*_ga_DYQ0HEBE5Z*czE3NjU5NDcyOTUkbzEkZzEkdDE3NjU5NDcyOTUkajYwJGwwJGgyMDIyNDI4MjAx",
+    "https://admissions.bits-pilani.ac.in/FD/FD_brochure.html?06012025&_gl=1*gfndeo*_gcl_au*MTUwMDQ5NzU0Ni4xNzY1NjA4MjIy*_ga*NzI3OTE4MjcyLjE3NjU5NDcyOTY.*_ga_DYQ0HEBE5Z*czE3NjU5NDcyOTUkbzEkZzEkdDE3NjU5NDc0NTgkajYwJGwwJGgyMDIyNDI4MjAx",
+    "https://cdn3.digialm.com/EForms/configuredHtml/1823/96992/Index.html?_gl=1*gscehk*_gcl_au*MTUwMDQ5NzU0Ni4xNzY1NjA4MjIy",
+    "https://admissions.bits-pilani.ac.in/ISA/ISA.html"
 ]
 def retrieve_live_context(query: str, full_text: str, top_k: int = 4) -> str:
     """
