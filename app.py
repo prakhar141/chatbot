@@ -10,6 +10,8 @@ from PIL import Image
 import streamlit as st
 from typing import List, Dict, Any, Optional
 import re
+from collections import defaultdict
+
 # LangChain/FAISS imports
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -34,115 +36,127 @@ K_VAL = int(os.getenv("K_VAL") or 4)
 
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
 ENABLE_PERSISTENT_CACHE = True
-import re
-from collections import defaultdict
 
 def mind_reading_title(user_name, query=None):
-
-    name = user_name or "Buddy"
-
-    if not query or not query.strip():
-        return f"Hey {name}, I know you didn’t open this chat by accident — what are you trying to figure out?"
-
-    q = query.lower().strip()
-
-    # --- Intent signal dictionaries ---
-    signals = defaultdict(list)
-
-    signals["worry"] = [
-        "chance", "will i get", "worried", "scared", "tension",
-        "low marks", "not sure", "nervous", "problem", "doubt",
-        "can i make", "is it possible", "fear", "stress"
-    ]
-
-    signals["confusion"] = [
-        "don’t understand", "didn’t get", "confused",
-        "explain", "how does", "what does", "meaning of",
-        "unclear", "don’t know", "guide me", "help me understand"
-    ]
-
-    signals["urgency"] = [
-        "urgent", "asap", "quick", "immediately",
-        "fast", "today", "deadline soon", "last date",
-        "hurry", "running out of time"
-    ]
-
-    signals["comparison"] = [
-        "better", "compare", "difference", "which is best",
-        "vs", "versus", "or", "choose between",
-        "pros and cons"
-    ]
-
-    signals["factual"] = [
-        "fee", "cutoff", "date", "deadline", "schedule",
-        "form", "eligibility", "criteria", "process",
-        "syllabus", "documents", "exam pattern"
-    ]
-
-    signals["excitement"] = [
-        "got seat", "admitted", "excited", "happy",
-        "selected", "made it", "celebrate"
-    ]
-
-    signals["planning"] = [
-        "roadmap", "plan", "strategy", "prepare",
-        "study plan", "next steps", "what should i do"
-    ]
-
-    # --- Scoring mechanism instead of simple matching ---
-    intent_score = defaultdict(int)
-
-    for intent, keywords in signals.items():
-        for k in keywords:
-            if k in q:
-                intent_score[intent] += 1
-
-    # Extra smart checks using patterns
-    is_question = q.endswith("?") or any(w in q for w in ["how", "what", "why", "when", "can i"])
-    has_numbers = bool(re.search(r"\d+", q))
-    long_query = len(q.split()) > 16
-    short_query = len(q.split()) <= 4
-
-    # Determine dominant intent
-    dominant_intent = max(intent_score, key=intent_score.get) if intent_score else None
-
-    # --- Decision Logic ---
-
-    if dominant_intent == "worry":
-        return f"I can sense some anxiety there, {name} 🤝 — relax, we’ll sort this out together."
-
-    if dominant_intent == "confusion":
-        return f"Looks like this topic feels unclear, {name} 🧩 — I’ll break it down simply."
-
-    if dominant_intent == "urgency":
-        return f"Got it, {name} ⚡ — I’ll keep this quick, clear, and actionable."
-
-    if dominant_intent == "comparison":
-        return f"Great question, {name} 🤔 — let’s compare this logically and clearly."
-
-    if dominant_intent == "factual":
-        return f"Straight to the facts, {name} 📌 — here’s the precise info you need."
-
-    if dominant_intent == "excitement":
-        return f"Love that energy, {name}! 🎉 — let’s plan your next smart move."
-
-    if dominant_intent == "planning":
-        return f"Thinking ahead — nice, {name} 🧭 — let’s create a solid plan."
-
-    # Pattern-based intuition
-    if has_numbers and is_question:
-        return f"Crunching the details for you, {name} 🔢 — let me give a clear answer."
-
-    if long_query:
-        return f"That’s a thoughtful question, {name} 🧐 — I’ll walk through it step by step."
-
-    if short_query:
-        return f"Short and crisp — I like it, {name} 😄 — here’s a clear answer."
-
-    # Generic fallback with empathetic mentor tone
-    return f"Got you, {name} 👍 — I’m here to guide you through this."
-
-
+   name = user_name or "Buddy"
+   
+   if not query or not query.strip():
+       return f"{name} — you opened this for a reason. What's the real question?"
+   
+   q = query.lower().strip()
+   words = q.split()
+   word_count = len(words)
+   
+   # Top 1% signal detection - weighted and context-aware
+   intent_signals = {
+       "worry": ["chance", "will i", "can i", "is it possible", "worried", "scared", "tension", 
+                 "low marks", "not sure", "nervous", "problem", "doubt", "fear", "stress",
+                 "don't think i can", "what if", "happen if", "fail"],
+       "confusion": ["don't understand", "didn't get", "confused", "explain", "how does", 
+                     "what does", "meaning", "unclear", "don't know", "guide", "make sense",
+                     "why would", "how come", "doesn't add up"],
+       "urgency": ["urgent", "asap", "quick", "immediately", "fast", "today", 
+                   "deadline", "last date", "hurry", "running out", "tomorrow", 
+                   "tonight", "soon", "time is", "left"],
+       "comparison": ["better", "compare", "difference", "which", "vs", "versus", 
+                      "or", "choose", "pros and cons", "should i go for", "worth it",
+                      "good or bad", "recommend"],
+       "factual": ["fee", "cutoff", "date", "deadline", "schedule", "form", 
+                   "eligibility", "criteria", "process", "syllabus", "documents", 
+                   "pattern", "how much", "when is", "where", "what is"],
+       "excitement": ["got seat", "admitted", "excited", "happy", "selected", 
+                      "made it", "celebrate", "congrats", "cracked", "cleared"],
+       "planning": ["roadmap", "plan", "strategy", "prepare", "study", "next steps", 
+                    "what should", "how do i start", "where to begin", "approach"]
+   }
+   
+   # Advanced scoring with position weighting
+   intent_score = {"worry": 0, "confusion": 0, "urgency": 0, "comparison": 0, 
+                   "factual": 0, "excitement": 0, "planning": 0}
+   
+   for intent, keywords in intent_signals.items():
+       for k in keywords:
+           if k in q:
+               # Stronger weight for phrase matches vs word matches
+               if " " in k:
+                   intent_score[intent] += 3
+               else:
+                   intent_score[intent] += 1
+   
+   # Pattern detection
+   is_question = q.endswith("?") or any(w in q for w in ["how", "what", "why", "when", "can", "should"])
+   has_numbers = any(c.isdigit() for c in q)
+   has_time_words = any(w in q for w in ["tomorrow", "today", "tonight", "morning", "evening", "week"])
+   has_negation = any(w in q for w in ["not", "no", "never", "don't", "can't", "won't"])
+   
+   # Word count tiers
+   very_short = word_count <= 3
+   short = 4 <= word_count <= 8
+   medium = 9 <= word_count <= 15
+   long = word_count > 15
+   
+   dominant_intent = max(intent_score, key=intent_score.get) if any(intent_score.values()) else None
+   
+   # === TOP 1% RESPONSE LOGIC ===
+   
+   # Priority: Intent + Context fusion
+   
+   if dominant_intent == "worry":
+       if has_negation:
+           return f"You're doubting yourself, {name}. Don't. We've got this."
+       if has_numbers:
+           return f"Numbers making you anxious, {name}? Let's decode them."
+       return f"I hear the tension, {name}. Let's turn that worry into action."
+   
+   if dominant_intent == "confusion":
+       if very_short:
+           return f"You want the straight truth, {name} — here it is."
+       if long:
+           return f"Lost in the details, {name}? I'll cut through the noise."
+       return f"This clicked for me instantly, {name}. Let me make it click for you."
+   
+   if dominant_intent == "urgency":
+       if has_time_words:
+           return f"Clock's ticking, {name}. Here's your fast pass."
+       if has_numbers:
+           return f"Precise answers for your timeline, {name}."
+       return f"Time is money, {name}. I'm not wasting either."
+   
+   if dominant_intent == "comparison":
+       if very_short:
+           return f"Option A or B, {name}? Let me settle this."
+       return f"You want clarity, not opinions, {name}. Here's the breakdown."
+   
+   if dominant_intent == "factual":
+       if has_numbers:
+           return f"Exact numbers, exact dates, {name} — no fluff."
+       if very_short:
+           return f"Direct answer coming up, {name}."
+       return f"Facts only, {name}. No noise."
+   
+   if dominant_intent == "excitement":
+       return f"I feel that energy, {name}! Let's channel it right."
+   
+   if dominant_intent == "planning":
+       if long:
+           return f"Big vision, {name}. I'll map the first step."
+       return f"You're thinking ahead. I love that, {name}."
+   
+   # Pattern-based intuition (secondary layer)
+   if is_question and has_numbers:
+       return f"Precise question, {name}. Precise answer loading."
+   
+   if long and is_question:
+       return f"You thought this through, {name}. I'll meet you there."
+   
+   if very_short and is_question:
+       return f"Straight to the point, {name}. I respect that."
+   
+   if has_negation and is_question:
+       return f"Something's holding you back, {name}. Let's fix that."
+   
+   # Ultimate fallback - empathetic mind-reader
+   return f"I know exactly where your head's at, {name}. Let's solve this."
 # ----------------- utilities for firebase chat history -----------------
 def load_user_chat_history(uid: str) -> List[Dict[str, Any]]:
     try:
