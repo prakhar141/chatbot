@@ -34,6 +34,114 @@ K_VAL = int(os.getenv("K_VAL") or 4)
 
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or "./llm_cache.db"
 ENABLE_PERSISTENT_CACHE = True
+import re
+from collections import defaultdict
+
+def mind_reading_title(user_name, query=None):
+
+    name = user_name or "Buddy"
+
+    if not query or not query.strip():
+        return f"Hey {name}, I know you didn’t open this chat by accident — what are you trying to figure out?"
+
+    q = query.lower().strip()
+
+    # --- Intent signal dictionaries ---
+    signals = defaultdict(list)
+
+    signals["worry"] = [
+        "chance", "will i get", "worried", "scared", "tension",
+        "low marks", "not sure", "nervous", "problem", "doubt",
+        "can i make", "is it possible", "fear", "stress"
+    ]
+
+    signals["confusion"] = [
+        "don’t understand", "didn’t get", "confused",
+        "explain", "how does", "what does", "meaning of",
+        "unclear", "don’t know", "guide me", "help me understand"
+    ]
+
+    signals["urgency"] = [
+        "urgent", "asap", "quick", "immediately",
+        "fast", "today", "deadline soon", "last date",
+        "hurry", "running out of time"
+    ]
+
+    signals["comparison"] = [
+        "better", "compare", "difference", "which is best",
+        "vs", "versus", "or", "choose between",
+        "pros and cons"
+    ]
+
+    signals["factual"] = [
+        "fee", "cutoff", "date", "deadline", "schedule",
+        "form", "eligibility", "criteria", "process",
+        "syllabus", "documents", "exam pattern"
+    ]
+
+    signals["excitement"] = [
+        "got seat", "admitted", "excited", "happy",
+        "selected", "made it", "celebrate"
+    ]
+
+    signals["planning"] = [
+        "roadmap", "plan", "strategy", "prepare",
+        "study plan", "next steps", "what should i do"
+    ]
+
+    # --- Scoring mechanism instead of simple matching ---
+    intent_score = defaultdict(int)
+
+    for intent, keywords in signals.items():
+        for k in keywords:
+            if k in q:
+                intent_score[intent] += 1
+
+    # Extra smart checks using patterns
+    is_question = q.endswith("?") or any(w in q for w in ["how", "what", "why", "when", "can i"])
+    has_numbers = bool(re.search(r"\d+", q))
+    long_query = len(q.split()) > 16
+    short_query = len(q.split()) <= 4
+
+    # Determine dominant intent
+    dominant_intent = max(intent_score, key=intent_score.get) if intent_score else None
+
+    # --- Decision Logic ---
+
+    if dominant_intent == "worry":
+        return f"I can sense some anxiety there, {name} 🤝 — relax, we’ll sort this out together."
+
+    if dominant_intent == "confusion":
+        return f"Looks like this topic feels unclear, {name} 🧩 — I’ll break it down simply."
+
+    if dominant_intent == "urgency":
+        return f"Got it, {name} ⚡ — I’ll keep this quick, clear, and actionable."
+
+    if dominant_intent == "comparison":
+        return f"Great question, {name} 🤔 — let’s compare this logically and clearly."
+
+    if dominant_intent == "factual":
+        return f"Straight to the facts, {name} 📌 — here’s the precise info you need."
+
+    if dominant_intent == "excitement":
+        return f"Love that energy, {name}! 🎉 — let’s plan your next smart move."
+
+    if dominant_intent == "planning":
+        return f"Thinking ahead — nice, {name} 🧭 — let’s create a solid plan."
+
+    # Pattern-based intuition
+    if has_numbers and is_question:
+        return f"Crunching the details for you, {name} 🔢 — let me give a clear answer."
+
+    if long_query:
+        return f"That’s a thoughtful question, {name} 🧐 — I’ll walk through it step by step."
+
+    if short_query:
+        return f"Short and crisp — I like it, {name} 😄 — here’s a clear answer."
+
+    # Generic fallback with empathetic mentor tone
+    return f"Got you, {name} 👍 — I’m here to guide you through this."
+
 
 # ----------------- utilities for firebase chat history -----------------
 def load_user_chat_history(uid: str) -> List[Dict[str, Any]]:
@@ -602,76 +710,6 @@ else:
     st.stop()
 
 # ----------------- Main chat handler (auto pipeline selection) -----------------
-def mind_reading_title(user_name, query=None):
-
-    name = user_name or "Buddy"
-
-    # Default if no conversation yet
-    if not query:
-        return f"Hey {name} 😊 — tell me what’s on your mind about BITS admissions."
-
-    q = query.lower().strip()
-
-    # --- Emotion layers ---
-    worry_signals = [
-        "chance", "will i get", "worried", "scared", "tension",
-        "low marks", "not sure", "nervous", "problem", "doubt"
-    ]
-
-    confusion_signals = [
-        "don’t understand", "didn’t get", "confused",
-        "explain", "how does", "what does", "meaning of"
-    ]
-
-    urgency_signals = [
-        "urgent", "asap", "quick", "immediately",
-        "fast", "today", "deadline soon"
-    ]
-
-    comparison_signals = [
-        "better", "compare", "difference", "which is best",
-        "vs", "or", "choose between"
-    ]
-
-    factual_signals = [
-        "fee", "cutoff", "date", "deadline", "schedule",
-        "form", "eligibility", "criteria"
-    ]
-
-    excitement_signals = [
-        "got seat", "admitted", "excited", "happy",
-        "selected", "made it"
-    ]
-
-    # --- Smart layered reasoning ---
-
-    if any(k in q for k in worry_signals):
-        return f"I can sense you’re a bit anxious, {name} 🤝 — relax, we’ll figure this out together."
-
-    if any(k in q for k in confusion_signals):
-        return f"Feels like this topic is a little unclear, {name} 🧩 — let me simplify it for you."
-
-    if any(k in q for k in urgency_signals):
-        return f"Got it, {name} ⚡ — I’ll keep this quick and to the point."
-
-    if any(k in q for k in comparison_signals):
-        return f"Nice question, {name} 🤔 — let’s break this down and compare logically."
-
-    if any(k in q for k in factual_signals):
-        return f"Straight to the facts, {name} 📌 — here’s exactly what you need."
-
-    if any(k in q for k in excitement_signals):
-        return f"Love that energy, {name}! 🎉 — let’s plan the next steps smartly."
-
-    # Query length intuition
-    if len(q.split()) <= 4:
-        return f"Short question — I like it, {name} 😄 — let me answer that clearly."
-
-    if len(q.split()) > 18:
-        return f"That’s a detailed thought, {name} 🧐 — I’ll walk through it step by step."
-
-    # Default – empathetic mentor tone
-    return f"Got you, {name} 👍 — let’s tackle this together, one clear step at a time."
 
 
 last_query = (
