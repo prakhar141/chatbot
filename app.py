@@ -602,8 +602,90 @@ else:
     st.stop()
 
 # ----------------- Main chat handler (auto pipeline selection) -----------------
+def mind_reading_title(user_name, query=None):
 
-st.title(f"Which part of BITS admissions shall we tackle first? {st.session_state.get('user_name', 'User')} 👋")
+    name = user_name or "Buddy"
+
+    # Default if no conversation yet
+    if not query:
+        return f"Hey {name} 😊 — tell me what’s on your mind about BITS admissions."
+
+    q = query.lower().strip()
+
+    # --- Emotion layers ---
+    worry_signals = [
+        "chance", "will i get", "worried", "scared", "tension",
+        "low marks", "not sure", "nervous", "problem", "doubt"
+    ]
+
+    confusion_signals = [
+        "don’t understand", "didn’t get", "confused",
+        "explain", "how does", "what does", "meaning of"
+    ]
+
+    urgency_signals = [
+        "urgent", "asap", "quick", "immediately",
+        "fast", "today", "deadline soon"
+    ]
+
+    comparison_signals = [
+        "better", "compare", "difference", "which is best",
+        "vs", "or", "choose between"
+    ]
+
+    factual_signals = [
+        "fee", "cutoff", "date", "deadline", "schedule",
+        "form", "eligibility", "criteria"
+    ]
+
+    excitement_signals = [
+        "got seat", "admitted", "excited", "happy",
+        "selected", "made it"
+    ]
+
+    # --- Smart layered reasoning ---
+
+    if any(k in q for k in worry_signals):
+        return f"I can sense you’re a bit anxious, {name} 🤝 — relax, we’ll figure this out together."
+
+    if any(k in q for k in confusion_signals):
+        return f"Feels like this topic is a little unclear, {name} 🧩 — let me simplify it for you."
+
+    if any(k in q for k in urgency_signals):
+        return f"Got it, {name} ⚡ — I’ll keep this quick and to the point."
+
+    if any(k in q for k in comparison_signals):
+        return f"Nice question, {name} 🤔 — let’s break this down and compare logically."
+
+    if any(k in q for k in factual_signals):
+        return f"Straight to the facts, {name} 📌 — here’s exactly what you need."
+
+    if any(k in q for k in excitement_signals):
+        return f"Love that energy, {name}! 🎉 — let’s plan the next steps smartly."
+
+    # Query length intuition
+    if len(q.split()) <= 4:
+        return f"Short question — I like it, {name} 😄 — let me answer that clearly."
+
+    if len(q.split()) > 18:
+        return f"That’s a detailed thought, {name} 🧐 — I’ll walk through it step by step."
+
+    # Default – empathetic mentor tone
+    return f"Got you, {name} 👍 — let’s tackle this together, one clear step at a time."
+
+
+last_query = (
+    st.session_state.chat_history[-1]["content"]
+    if st.session_state.chat_history
+    else None
+)
+
+st.title(
+    mind_reading_title(
+        st.session_state.get("user_name", "User"),
+        last_query
+    )
+)
 
 # ----------------------
 # 1️⃣ Load embedding model
